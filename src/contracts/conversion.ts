@@ -10,6 +10,8 @@ export interface Resource {
 }
 export interface ImageContext extends Resource { alt: string; formula: boolean; }
 export interface ImageResult { bytes: Uint8Array; mimeType: string; }
+export interface ProcessedImage { fileUrl: string; fileSize?: number; fileName?: string; }
+export type LargeImageHandler = (fileBlob: Blob, fileSuffix: string, fileName: string) => ProcessedImage | Promise<ProcessedImage>;
 export interface ConversionLimits {
   inputBytes: number; totalBytes: number; entryBytes: number; entries: number; xmlDepth: number;
 }
@@ -19,9 +21,13 @@ export interface ConversionOptions {
   formulaOutput?: 'image' | 'mathml';
   title?: string;
   images?: {
+    /** Byte threshold for processLargeImage; equal-sized images stay inline. Requires processLargeImage to offload. */
+    maxInlineBytes?: number;
+    /** Receives the final displayable image after any format conversion; its fileUrl becomes <img src>. */
+    processLargeImage?: LargeImageHandler;
     /** Called only for browser-supported raster formats. Returned URLs are checked. */
     resolve?: (image: ImageContext) => string | Promise<string>;
-    /** Opt-in adapter for WMF/EMF/TIFF/SVG etc.; return PNG/JPEG/GIF/WebP bytes. */
+    /** Override or extend built-in EMF handling; return PNG/JPEG/GIF/WebP bytes for WMF/TIFF/SVG etc. */
     convert?: (image: ImageContext) => ImageResult | undefined | Promise<ImageResult | undefined>;
   };
   onProgress?: (event: ProgressEvent) => void;

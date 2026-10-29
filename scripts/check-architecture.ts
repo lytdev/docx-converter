@@ -22,7 +22,7 @@ export function dependencyAllowed(from: string, to: string): boolean {
   if (foundations.includes(b)) return true;
   if (a === 'infrastructure') return b === 'infrastructure';
   if (a === 'application') return ['application', 'infrastructure', 'modules', 'rendering'].includes(b);
-  if (a === 'adapters') return b === 'application' || (b === 'adapters' && from.split('/')[2] === to.split('/')[2]);
+  if (a === 'adapters') return b === 'application' || to.startsWith('src/modules/images/') || (b === 'adapters' && from.split('/')[2] === to.split('/')[2]);
   if (a === 'rendering') return b === 'rendering' || to.startsWith('src/modules/images/');
   if (a === 'modules') {
     if (b === 'infrastructure') return !from.startsWith('src/modules/images/');

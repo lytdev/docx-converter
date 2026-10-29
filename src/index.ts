@@ -1,4 +1,5 @@
 /** Stable package facade. Internal modules are not public deep imports. */
-export { convertDocx } from './application/convert-docx.js';
+export { convertToHtml, convertToJson } from './application/convert-docx.js';
+export type { JsonConversionResult, DocumentModel, Block, Inline, Paragraph, Table, Cell, Row, TextNode, ImageNode, MathNode, LinkNode, RunStyle, ParaStyle, Css } from './application/convert-docx.js';
 export * from './contracts/conversion.js';
 export { DocxError } from './contracts/errors.js';

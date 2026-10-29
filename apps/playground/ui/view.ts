@@ -8,6 +8,7 @@ export interface ViewActions {
   sample(): void;
   cancel(): void;
   download(): void;
+  json(): void;
   resources(): void;
   copy(): void;
 }
@@ -33,7 +34,7 @@ export class PlaygroundView {
       event.preventDefault(); dropzone.classList.remove('over');
       const file = event.dataTransfer?.files[0]; if (file) actions.file(file);
     });
-    for (const action of ['sample', 'cancel', 'download', 'resources', 'copy'] as const) el(action).addEventListener('click', () => actions[action]());
+    for (const action of ['sample', 'cancel', 'download', 'json', 'resources', 'copy'] as const) el(action).addEventListener('click', () => actions[action]());
     for (const tab of ['preview', 'source'] as const) {
       el(`tab-${tab}`).addEventListener('click', () => this.setTab(tab));
       el(`tab-${tab}`).addEventListener('keydown', event => {
@@ -67,10 +68,10 @@ export class PlaygroundView {
     el('cancel').hidden = true; el('empty').hidden = false; el('error').hidden = true;
     el('warnings').replaceChildren(); el('warning-count').textContent = '0';
     el<HTMLDetailsElement>('diagnostics').open = false;
-    for (const id of ['download', 'copy', 'resources']) el<HTMLButtonElement>(id).disabled = true;
+    for (const id of ['download', 'json', 'copy', 'resources']) el<HTMLButtonElement>(id).disabled = true;
     for (const strong of el('stats').querySelectorAll('strong')) strong.textContent = '—';
     this.setTab(this.selected);
-    el('output-info').textContent = '转换结果可直接嵌入项目或保存为 HTML 文件';
+    el('output-info').textContent = '转换结果可保存为 HTML 或 JSON 文件';
   }
 
   loading(status: string, cancellable = false): void {
@@ -84,7 +85,7 @@ export class PlaygroundView {
     el('error').textContent = error instanceof Error ? error.message : String(error); el('error').hidden = false;
   }
   updateProgress(event: ProgressEvent): void {
-    const names = { reading: '读取文档', extracting: '解压文档', parsing: '解析正文', rendering: '生成 HTML', complete: '整理结果' };
+    const names = { reading: '读取文档', extracting: '解压文档', parsing: '解析正文', rendering: '生成输出', complete: '整理结果' };
     el('status').textContent = `${names[event.stage]}${event.total ? ` · ${event.completed}/${event.total}` : '…'}`;
     if (event.stage === 'parsing' && event.total) { this.progress.max = event.total; this.progress.value = event.completed ?? 0; }
     else this.progress.removeAttribute('value');
@@ -99,9 +100,9 @@ export class PlaygroundView {
     const messages = result.warnings.length ? result.warnings.map(warning => warning.message) : ['未发现兼容性问题。建议导出前核对预览。'];
     for (const message of messages) { const li = document.createElement('li'); li.textContent = message; el('warnings').append(li); }
     el<HTMLDetailsElement>('diagnostics').open = result.warnings.length > 0;
-    el<HTMLButtonElement>('download').disabled = false; el<HTMLButtonElement>('copy').disabled = false;
+    el<HTMLButtonElement>('download').disabled = false; el<HTMLButtonElement>('json').disabled = false; el<HTMLButtonElement>('copy').disabled = false;
     el<HTMLButtonElement>('resources').disabled = !result.resources.length && !result.convertedImages.length;
-    el('output-info').textContent = `HTML ${(new Blob([result.html]).size / 1024).toFixed(1)} KB · ${result.resources.length} 个原始资源 · ${result.convertedImages.length} 张公式预览 PNG`;
+    el('output-info').textContent = `HTML ${(new Blob([result.html]).size / 1024).toFixed(1)} KB · ${result.resources.length} 个原始资源 · ${result.convertedImages.length} 张转码 PNG`;
   }
   copied(): void {
     el('copy').textContent = '已复制'; setTimeout(() => { el('copy').textContent = '复制 HTML'; }, 1500);

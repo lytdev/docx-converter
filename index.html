@@ -1,11 +1,11 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DOCX → HTML · 本地文档转换</title></head>
+    <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DOCX → HTML / JSON · 本地文档转换</title></head>
   <body>
     <div class="app">
-      <header><a class="brand" href="./" aria-label="首页"><span class="brand-icon">D↗</span> DOCX <span class="brand-arrow">/</span> HTML</a><span class="privacy"><span></span> 文件在本机处理</span></header>
+      <header><a class="brand" href="./" aria-label="首页"><span class="brand-icon">D↗</span> DOCX <span class="brand-arrow">/</span> HTML + JSON</a><span class="privacy"><span></span> 文件在本机处理</span></header>
       <main>
-        <div class="intro"><div><p class="eyebrow">DOCUMENT CONVERTER</p><h1>文档内容，留在网页里。</h1><p class="subtitle">保留字体、图片、表格与数学公式，将 Word 文档转换为可独立打开的 HTML。</p></div><span class="version">TypeScript · v0.1</span></div>
+        <div class="intro"><div><p class="eyebrow">DOCUMENT CONVERTER</p><h1>文档内容，留在网页里。</h1><p class="subtitle">保留字体、图片、表格与数学公式，将 Word 文档转换为 HTML 和结构化 JSON。</p></div><span class="version">TypeScript · v0.1</span></div>
         <div class="workspace">
           <aside>
             <section class="card"><h2>导入文档</h2><label id="dropzone" class="dropzone" tabindex="0" role="button"><span class="file-icon" aria-hidden="true">＋</span><strong>选择或拖入 DOCX</strong><span>单个文件，默认最大 50 MB</span><input id="file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></label><button id="sample" class="secondary full">试用示例文档</button><p class="note">支持 .docx。旧版 .doc 和加密文档请先在 Word 中另存为 DOCX。</p></section>
@@ -14,15 +14,15 @@
             <p class="local-note">图片默认嵌入 HTML。字体使用设备上安装的字体。复杂浮动布局和旧版公式可能需要额外适配。</p>
           </aside>
           <section class="preview-panel">
-            <div class="toolbar"><div class="tabs" role="tablist" aria-label="输出视图"><button id="tab-preview" role="tab" aria-selected="true" aria-controls="preview-view">文档预览</button><button id="tab-source" role="tab" aria-selected="false" aria-controls="source-view" tabindex="-1">HTML 源码</button></div><div class="actions"><button id="copy" class="secondary" disabled>复制 HTML</button><button id="download" class="primary" disabled>下载 HTML <span aria-hidden="true">↓</span></button></div></div>
+            <div class="toolbar"><div class="tabs" role="tablist" aria-label="输出视图"><button id="tab-preview" role="tab" aria-selected="true" aria-controls="preview-view">文档预览</button><button id="tab-source" role="tab" aria-selected="false" aria-controls="source-view" tabindex="-1">HTML 源码</button></div><div class="actions"><button id="copy" class="secondary" disabled>复制 HTML</button><button id="json" class="secondary" disabled>下载 JSON</button><button id="download" class="primary" disabled>下载 HTML <span aria-hidden="true">↓</span></button></div></div>
             <div id="empty"><div class="paper-illustration" aria-hidden="true"><span></span><span></span><span></span><div></div><span></span></div><h2>你的文档将在这里呈现</h2><p>导入一份 DOCX，或先试用示例文档。</p><div class="tags"><span>字体样式</span><span>图片与表格</span><span>MathML 公式</span></div></div>
             <div id="preview-view" role="tabpanel" aria-labelledby="tab-preview" hidden><iframe id="preview" title="转换后的文档预览" sandbox=""></iframe></div>
             <div id="source-view" role="tabpanel" aria-labelledby="tab-source" hidden><textarea id="source" aria-label="HTML 源码" readonly spellcheck="false"></textarea></div>
-            <div class="panel-footer"><span id="output-info">转换结果可直接嵌入项目或保存为 HTML 文件</span><button id="resources" class="text-button" disabled>下载原始资源</button></div>
+            <div class="panel-footer"><span id="output-info">转换结果可保存为 HTML 或 JSON 文件</span><button id="resources" class="text-button" disabled>下载原始资源</button></div>
           </section>
         </div>
       </main>
-      <footer><span>DOCX → HTML</span><span>本地转换 · 无需 Java · 无需上传</span></footer>
+      <footer><span>DOCX → HTML / JSON</span><span>本地转换 · 无需 Java · 无需上传</span></footer>
     </div>
     <script type="module" src="/apps/playground/main.ts"></script>
   </body>

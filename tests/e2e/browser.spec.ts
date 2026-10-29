@@ -2,8 +2,9 @@ import { test, expect } from '@playwright/test';
 import { readFile, mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { unzipSync } from 'fflate';
-import { docx, p, mt, ns, R } from '../fixtures/docx';
+import { docx, p, mt, ns, R, image, png } from '../fixtures/docx';
 import { textWmf } from '../fixtures/wmf';
+import { emf } from '../fixtures/emf';
 import { hex, oleEquation } from '../fixtures/ole';
 
 test('browser worker converts, previews, exports and reopens standalone HTML', async ({ page, context }) => {
@@ -27,6 +28,13 @@ test('browser worker converts, previews, exports and reopens standalone HTML', a
   await mkdir('.tmp', { recursive: true });
   const path = resolve('.tmp/exported.html'); await download.saveAs(path);
   const html = await readFile(path, 'utf8'); expect(html).toContain('<!DOCTYPE html>');
+  const jsonEvent = page.waitForEvent('download'); await page.getByRole('button', { name: '下载 JSON' }).click();
+  const jsonDownload = await jsonEvent; expect(jsonDownload.suggestedFilename()).toBe('示例文档.json');
+  const jsonPath = resolve('.tmp/exported.json'); await jsonDownload.saveAs(jsonPath);
+  const json = JSON.parse(await readFile(jsonPath, 'utf8'));
+  expect(json.document.blocks.length).toBeGreaterThan(5);
+  expect(json.stats.formulas).toBe(2);
+  expect(json.warnings).toEqual([]);
   const exported = await context.newPage(); await exported.goto(`file:///${path.replace(/\\/g, '/')}`);
   await expect(exported.locator('math')).toHaveCount(0); await expect(exported.locator('img.formula-image')).toHaveCount(2); await expect(exported.getByRole('heading', { name: '文档转换 · 能力示例', exact: true })).toBeVisible();
   expect(await exported.locator('img').evaluateAll((images: HTMLImageElement[]) => images.every(img => img.naturalWidth > 0))).toBe(true);
@@ -64,10 +72,45 @@ test('UMD build works through a plain script tag without bundler globals', async
   await page.addScriptTag({ path: resolve('dist/docx-html.umd.cjs') });
   const result = await page.evaluate(async () => {
     const bytes = await (await fetch('/sample.docx')).arrayBuffer();
-    const api = (window as unknown as { DocxHtml: { convertDocx: (bytes: ArrayBuffer) => Promise<{ html: string; warnings: unknown[] }> } }).DocxHtml;
-    const r = await api.convertDocx(bytes); return { svgImages: (r.html.match(/data:image\/svg\+xml;base64,/g) ?? []).length, hasMath: r.html.includes('<math'), warnings: r.warnings };
+    const api = (window as unknown as { DocxHtml: {
+      convertToHtml: (bytes: ArrayBuffer) => Promise<{ html: string; warnings: unknown[] }>;
+      convertToJson: (bytes: ArrayBuffer) => Promise<{ document: { blocks: { kind: string }[] }; warnings: unknown[] }>;
+    } }).DocxHtml;
+    const [r, json] = await Promise.all([api.convertToHtml(bytes), api.convertToJson(bytes)]);
+    return { svgImages: (r.html.match(/data:image\/svg\+xml;base64,/g) ?? []).length, hasMath: r.html.includes('<math'), warnings: r.warnings,
+      jsonHasBlocks: json.document.blocks.length > 5, jsonFirst: json.document.blocks[0]?.kind, jsonWarnings: json.warnings,
+      oldExportsAbsent: !('convertDocx' in api) && !('convertDocxToJson' in api) };
   });
-  expect(result).toEqual({ svgImages: 2, hasMath: false, warnings: [] });
+  expect(result).toEqual({ svgImages: 2, hasMath: false, warnings: [], jsonHasBlocks: true, jsonFirst: 'paragraph', jsonWarnings: [], oldExportsAbsent: true });
+});
+
+test('plain browser script can offload images above the byte limit', async ({ page }) => {
+  const bytes = docx(p(image()), { rels: `<Relationship Id="image1" Type="${R}/image" Target="media/photo.png"/>`, media: { 'photo.png': png } });
+  await page.goto('/');
+  await page.route('**/uploaded/photo.png', route => route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from(png) }));
+  await page.addScriptTag({ path: resolve('dist/docx-html.umd.cjs') });
+  const result = await page.evaluate(async data => {
+    const api = (window as unknown as { DocxHtml: { convertToHtml: (bytes: Uint8Array, options: unknown) => Promise<{ html: string }> } }).DocxHtml;
+    let upload: { size: number; suffix: string; name: string } | undefined;
+    const converted = await api.convertToHtml(Uint8Array.from(data), { images: {
+      maxInlineBytes: 0,
+      processLargeImage: async (blob: Blob, suffix: string, name: string) => {
+        upload = { size: blob.size, suffix, name };
+        return { fileUrl: '/uploaded/photo.png', fileSize: blob.size, fileName: name };
+      },
+    } });
+    return { upload, html: converted.html, externalUrl: converted.html.includes('src="/uploaded/photo.png"'), embedded: converted.html.includes('data:image/png;base64,') };
+  }, [...bytes]);
+  expect(result.upload).toEqual({ size: png.length, suffix: 'png', name: 'photo.png' });
+  expect(result.externalUrl).toBe(true); expect(result.embedded).toBe(false);
+  await page.evaluate(html => {
+    const frame = document.createElement('iframe');
+    frame.id = 'upload-preview'; frame.style.cssText = 'display:block;width:320px;height:120px';
+    frame.srcdoc = html; document.body.append(frame);
+  }, result.html);
+  const uploadedImage = page.frameLocator('#upload-preview').locator('img');
+  await expect(uploadedImage).toBeVisible();
+  expect(await uploadedImage.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
 });
 
 test('a delayed sample response cannot replace a newer file conversion', async ({ page }) => {
@@ -91,6 +134,38 @@ test('a delayed sample response cannot replace a newer file conversion', async (
   await expect(page.locator('#status')).toHaveText('转换完成');
 });
 
+test('rasterizes a normal EMF image and includes both PNG and original EMF in downloads', async ({ page }) => {
+  const bytes = docx(p(image()), { rels: `<Relationship Id="image1" Type="${R}/image" Target="media/shape.emf"/>`, media: { 'shape.emf': emf } });
+  await page.goto('/');
+  await page.locator('#file').setInputFiles({ name: 'emf.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: Buffer.from(bytes) });
+  await expect(page.locator('#status')).toHaveText('转换完成');
+  await expect(page.locator('#warning-count')).toHaveText('0');
+  const emfImage = page.frameLocator('#preview').locator('img.image-item');
+  await expect(emfImage).toBeVisible();
+  const src = await emfImage.getAttribute('src');
+  expect(src).toMatch(/^data:image\/png;base64,/);
+  expect(await emfImage.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0)).toBe(true);
+  const jsonEvent = page.waitForEvent('download'); await page.locator('#json').click();
+  const jsonDownload = await jsonEvent;
+  await mkdir('.tmp', { recursive: true });
+  const jsonPath = resolve('.tmp/emf.json'); await jsonDownload.saveAs(jsonPath);
+  const json = JSON.parse(await readFile(jsonPath, 'utf8'));
+  expect(json.document.blocks[0].children[0].src).toMatch(/^data:image\/png;base64,/);
+  const zipEvent = page.waitForEvent('download'); await page.locator('#resources').click();
+  const zipDownload = await zipEvent;
+  const zipPath = resolve('.tmp/emf-resources.zip'); await zipDownload.saveAs(zipPath);
+  const resources = unzipSync(new Uint8Array(await readFile(zipPath)));
+  expect(resources['word/media/shape.emf']).toEqual(emf);
+  expect([...resources['word/media/shape.emf.png'].subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+  await page.addScriptTag({ path: resolve('dist/docx-html.umd.cjs') });
+  const umdSrc = await page.evaluate(async data => {
+    const api = (window as unknown as { DocxHtml: { convertToHtml: (bytes: Uint8Array) => Promise<{ html: string }> } }).DocxHtml;
+    const converted = await api.convertToHtml(Uint8Array.from(data));
+    return new DOMParser().parseFromString(converted.html, 'text/html').querySelector('img')?.getAttribute('src');
+  }, [...bytes]);
+  expect(umdSrc).toMatch(/^data:image\/png;base64,/);
+});
+
 test('rasterizes a MathType WMF preview, attaches LaTeX and exports original resources', async ({ page }) => {
   const wmf = textWmf();
   const ole = oleEquation(hex('03 01 01 03 00 01 02 83 78 00 02 83 2B 00 02 83 79 00 00 00'));
@@ -99,7 +174,7 @@ test('rasterizes a MathType WMF preview, attaches LaTeX and exports original res
   await page.goto('/');
   await page.locator('#file').setInputFiles({ name: 'formula.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: Buffer.from(bytes) });
   await expect(page.locator('#status')).toHaveText('转换完成');
-  await expect(page.locator('#output-info')).toContainText('1 张公式预览 PNG');
+  await expect(page.locator('#output-info')).toContainText('1 张转码 PNG');
   await page.locator('#preview').scrollIntoViewIfNeeded();
   const image = page.frameLocator('#preview').locator('img.formula-image');
   await expect(image).toBeVisible();

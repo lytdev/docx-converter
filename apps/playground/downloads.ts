@@ -10,6 +10,9 @@ function download(blob: Blob, name: string): void {
 export function downloadHtml(result: PlaygroundConversionResult, filename: string): void {
   download(new Blob([result.html], { type: 'text/html;charset=utf-8' }), `${filename}.html`);
 }
+export function downloadJson(result: PlaygroundConversionResult, filename: string): void {
+  download(new Blob([JSON.stringify(result.json, null, 2)], { type: 'application/json;charset=utf-8' }), `${filename}.json`);
+}
 export function downloadResources(result: PlaygroundConversionResult, filename: string): void {
   const zip = zipSync(Object.fromEntries([...result.resources, ...result.convertedImages].map(resource => [resource.path, resource.bytes])));
   download(new Blob([new Uint8Array(zip)], { type: 'application/zip' }), `${filename}-resources.zip`);

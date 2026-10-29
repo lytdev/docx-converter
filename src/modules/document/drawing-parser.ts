@@ -2,9 +2,18 @@ import type { ImageNode, Inline, Paragraph } from '../../domain/document.js';
 import { attr, descendants, NS, number } from '../../infrastructure/xml/dom.js';
 import type { X } from '../../infrastructure/xml/dom.js';
 import type { ParseContext } from './parse-context.js';
+import { CHART_NS, parseChart } from './chart-parser.js';
 export class DrawingParser {
   constructor(private readonly context: ParseContext, private readonly parseParagraphs: (parent: X) => Paragraph[]) {}
   parse(el: X, formula: boolean): Inline[] {
+    const chart = descendants(el, 'chart', CHART_NS)[0];
+    if (chart) {
+      const extent = descendants(el, 'extent', NS.wp)[0];
+      const image = parseChart(chart, this.context, number(extent?.getAttribute('cx') ?? undefined, 7810500) / 9525, number(extent?.getAttribute('cy') ?? undefined, 4762500) / 9525);
+      if (image) return [image];
+      this.context.operations.warn('UNSUPPORTED_CHART', '图表类型或缓存数据暂不支持生成图片');
+      return [{ kind: 'unsupported', label: '[未支持的图表]' }];
+    }
     const blips = descendants(el, 'blip', NS.a), vml = descendants(el, 'imagedata', NS.v);
     const refs = blips.length ? blips : vml;
     if (!refs.length) {

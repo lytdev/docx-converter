@@ -12,7 +12,7 @@ class FakeWorker {
   constructor() { FakeWorker.instances.push(this); }
   respond(data: ConversionResponse): void { this.onmessage?.({ data } as MessageEvent<ConversionResponse>); }
 }
-const result: PlaygroundConversionResult = { html: '<p>done</p>', warnings: [], resources: [], convertedImages: [], stats: { paragraphs: 1, tables: 0, images: 0, formulas: 0 } };
+const result: PlaygroundConversionResult = { html: '<p>done</p>', json: { document: { blocks: [] }, warnings: [], resources: [], stats: { paragraphs: 1, tables: 0, images: 0, formulas: 0 } }, warnings: [], resources: [], convertedImages: [], stats: { paragraphs: 1, tables: 0, images: 0, formulas: 0 } };
 beforeEach(() => { FakeWorker.instances = []; vi.useFakeTimers(); vi.stubGlobal('Worker', FakeWorker); });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 

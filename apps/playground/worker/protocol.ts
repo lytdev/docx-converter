@@ -1,6 +1,7 @@
-import type { ConversionResult, ProgressEvent, Resource } from '../../../src/index';
+import type { ConversionResult, JsonConversionResult, ProgressEvent, Resource } from '../../../src/index';
 
 export interface PlaygroundConversionResult extends ConversionResult {
+  json: JsonConversionResult;
   convertedImages: Resource[];
 }
 

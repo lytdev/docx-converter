@@ -1,4 +1,4 @@
-import { downloadHtml, downloadResources } from './downloads';
+import { downloadHtml, downloadJson, downloadResources } from './downloads';
 import type { PlaygroundView } from './ui/view';
 import type { ConversionWorkerClient } from './worker/client';
 import type { PlaygroundConversionResult } from './worker/protocol';
@@ -17,6 +17,7 @@ export class PlaygroundController {
       sample: () => { void this.sample(); },
       cancel: () => { this.generation++; this.worker.cancel(); this.view.cancelled(); },
       download: () => { if (this.result) downloadHtml(this.result, this.filename); },
+      json: () => { if (this.result) downloadJson(this.result, this.filename); },
       resources: () => { if (this.result) downloadResources(this.result, this.filename); },
       copy: () => { void this.copy(); },
     });

@@ -11,8 +11,16 @@ export interface TextNode { kind: 'text'; text: string; style: RunStyle; }
 export interface ImageNode {
   kind: 'image'; path?: string; alt: string; width?: number; height?: number;
   formula: boolean; latex?: string; css: Css;
+  /** Resolved display URL in the JSON output; absent when the image cannot be displayed. */
+  src?: string;
+  /** SVG constructed from supported chart data by the parser. */
+  generatedSvg?: string;
 }
-export interface MathNode { kind: 'math'; mathml: string; latex?: string; display: boolean; }
+export interface MathNode {
+  kind: 'math'; mathml: string; latex?: string; display: boolean;
+  /** Self-contained SVG URL when formulaOutput is image and rendering succeeds. */
+  src?: string;
+}
 export interface LinkNode { kind: 'link'; url: string; children: Inline[]; }
 export type Inline = TextNode | ImageNode | MathNode | LinkNode | { kind: 'break' } | { kind: 'anchor'; id: string } | { kind: 'unsupported'; label: string };
 export interface Paragraph {

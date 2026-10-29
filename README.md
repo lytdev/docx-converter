@@ -1,8 +1,8 @@
-# DOCX → HTML
+# DOCX → HTML / JSON
 
-使用 **TypeScript + Vite** 实现的 DOCX 转换库，提供 **npm 引入、Node.js 文件入口、浏览器页面、普通 script 标签** 四种调用方式。转换在本机执行，不依赖 Java、Word、服务器或在线公式服务。
+使用 **TypeScript + Vite** 实现的 DOCX 转换库，提供 **npm 引入、Node.js 文件入口、浏览器页面、普通 script 标签** 四种调用方式。HTML 与 JSON 输出共用 OOXML 解析后的文档模型。转换在本机执行，不依赖 Java、Word、服务器或在线公式服务。
 
-实现参考相邻 Java 项目的分层方式：安全读取 DOCX → 解析 OOXML → 文档模型 → HTML。没有将 Mammoth 作为底层转换引擎，以便自行保留字体、表格边框和公式结构。
+实现参考相邻 Java 项目的分层方式：安全读取 DOCX → 解析 OOXML → 文档模型 → HTML / JSON。没有将 Mammoth 作为底层转换引擎，以便自行保留字体、表格边框和公式结构。
 
 ## 快速启动
 
@@ -13,7 +13,7 @@ npm ci
 npm run dev
 ```
 
-打开终端显示的本地地址，选择或拖入 DOCX；也可以点击“试用示例文档”。页面支持预览、源码、复制、下载完整 HTML 和资源 ZIP。OMML 公式默认渲染为自包含 SVG 图片并写入可提取的 `data-latex`；MathType/OLE 自带 WMF/EMF 预览时，页面会在 Web Worker 中将其转成 PNG 并嵌入 HTML，可解析的 OLE/MTEF 公式也会写入 `data-latex`。资源 ZIP 包含原始预览、OLE 对象和生成的 PNG；OMML 的 SVG 已内嵌在 HTML 中。页面支持取消和 60 秒超时终止。
+打开终端显示的本地地址，选择或拖入 DOCX；也可以点击“试用示例文档”。页面支持预览、源码、复制、下载完整 HTML、结构化 JSON 和资源 ZIP。普通 EMF 图片会转成 PNG；OMML 公式默认渲染为自包含 SVG 图片并写入可提取的 `data-latex`；MathType/OLE 自带 WMF/EMF 预览时，页面会在 Web Worker 中将其转成 PNG 并嵌入 HTML，可解析的 OLE/MTEF 公式也会写入 `data-latex`。资源 ZIP 包含原始图片、OLE 对象和生成的 PNG；OMML 的 SVG 已内嵌在 HTML 中。页面支持取消和 60 秒超时终止。
 
 ```sh
 npm run check
@@ -51,10 +51,10 @@ npm install /absolute/path/agile-hub-docx-html-0.1.0.tgz
 在 Vite、Vue、React 或其他 TypeScript / JavaScript 项目中均可调用，不绑定 UI 框架：
 
 ```ts
-import { convertDocx } from '@agile-hub/docx-html';
+import { convertToHtml } from '@agile-hub/docx-html';
 
 const file = document.querySelector<HTMLInputElement>('#file')!.files![0];
-const result = await convertDocx(file, {
+const result = await convertToHtml(file, {
   output: 'document', // 默认；可设为 'fragment'
   title: file.name,
   onProgress(event) {
@@ -82,22 +82,43 @@ interface ConversionResult {
 
 `resources` 包括被引用的原始图片及 OLE 文件，即使图片不能显示也会保留。转换后的 PNG 嵌入 HTML；浏览器演示页还会将其单独导出到资源 ZIP。统计包含表格内段落和嵌套表格；解析进度的 total 只统计顶层内容块，两者用途不同。
 
+### 导出 JSON
+
+`convertToJson` 与 `convertToHtml` 接受**相同的输入和 `ConversionOptions`**。两者共用解析器及文档结构，JSON 出口在结构树中填充可显示图片的 `src`；大图上传回调、格式转换、取消、进度与安全 URL 校验同样生效。`formulaOutput: 'image'`（默认）时，OMML 公式节点同时包含 MathML、可提取的 LaTeX 和自包含 SVG `src`；设为 `'mathml'` 时不生成 SVG。
+
+```ts
+import { convertToJson, type JsonConversionResult } from '@agile-hub/docx-html';
+
+const result: JsonConversionResult = await convertToJson(file, {
+  images: { maxInlineBytes: 512 * 1024 }, // 按需加入下文的 processLargeImage 回调
+});
+const jsonText = JSON.stringify(result, null, 2);
+console.log(result.document.blocks, result.warnings);
+```
+
+`result.document.blocks` 是按原文顺序排列的段落与表格；表格单元格内仍是 `blocks`，段落内的 `children` 包括文字、图片、公式、链接等节点。JSON 保留原始相邻段落，HTML 展示时可将图注、表注合并到图表元素。图片节点保留 `path`、尺寸、样式和解析后的 `src`，不支持或缺失的图片没有 `src` 并产生诊断。JSON 结果的 `resources` 只包含原始资源的 `path`、`mimeType`、`size`，因此整个返回值可直接序列化；如需原始二进制资源，使用 `convertToHtml` 的 `resources`。`output` 和 `title` 是 HTML 包装选项，对 JSON 文档树没有影响。
+
+普通浏览器 script 标签也可调用 `DocxHtml.convertToJson(file, options)`；`examples/browser.html` 提供下载 JSON 的示例。npm 主入口与 UMD 包均导出此方法。
+
 ### Node.js 调用
 
 ```ts
 import { writeFile } from 'node:fs/promises';
-import { convertDocxFile } from '@agile-hub/docx-html/node';
+import { convertToHtmlFile, convertToJsonFile } from '@agile-hub/docx-html/node';
 
-const result = await convertDocxFile('report.docx');
-await writeFile('report.html', result.html, 'utf8');
+const html = await convertToHtmlFile('report.docx');
+const json = await convertToJsonFile('report.docx');
+await writeFile('report.html', html.html, 'utf8');
+await writeFile('report.json', JSON.stringify(json, null, 2), 'utf8');
 ```
 
-主入口也接受 Node Buffer（Uint8Array）。文件读写仅存在于 Node 入口和调用方代码，浏览器入口不引入 `node:fs`。
+Node 文件路径方法与浏览器/主入口的 `convertToHtml(input, options)`、`convertToJson(input, options)` 一一对应，参数中的 `options` 类型相同。主入口也接受 Node Buffer（Uint8Array）。文件读取仅存在于 Node 入口，输出文件由调用方写入；浏览器入口不引入 `node:fs`。
 
 构建后可运行：
 
 ```sh
 node examples/node.mjs public/sample.docx sample.html
+node examples/node.mjs public/sample.docx sample.json
 ```
 
 ### 普通浏览器 script 引入
@@ -113,9 +134,12 @@ node examples/node.mjs public/sample.docx sample.html
     const file = event.target.files[0];
     if (!file) return;
     try {
-      const result = await DocxHtml.convertDocx(file);
+      const result = await DocxHtml.convertToHtml(file);
       document.getElementById('preview').srcdoc = result.html;
       console.log(result.warnings);
+      // 导出结构数据时，使用同一组选项调用：
+      const json = await DocxHtml.convertToJson(file);
+      console.log(json.document.blocks);
     } catch (error) {
       console.error(error);
     }
@@ -125,48 +149,54 @@ node examples/node.mjs public/sample.docx sample.html
 
 ## 图片扩展
 
-默认把 PNG/JPEG/GIF/WebP 嵌入 Data URI，导出 HTML 不依赖原 DOCX 或 Blob URL。
-
-业务需要上传图片时，传入异步处理器。调用方负责鉴权、上传和资源生命周期：
+默认把 PNG/JPEG/GIF/WebP 嵌入 Base64 Data URI，导出 HTML 不依赖原 DOCX 或 Blob URL。需要只上传大图片时，设置字节阈值和异步回调：
 
 ```ts
-const result = await convertDocx(file, {
+const result = await convertToHtml(file, {
   images: {
-    async resolve(image) {
+    maxInlineBytes: 512 * 1024, // 小于或等于 512 KiB 的图片保持 Base64
+    async processLargeImage(fileBlob, fileSuffix, fileName) {
       const form = new FormData();
-      // Blob 需要普通 ArrayBuffer，复制也可兼容 SharedArrayBuffer 类型。
-      form.append('file', new Blob([new Uint8Array(image.bytes)], {
-        type: image.mimeType,
-      }), image.path.split('/').pop());
+      form.append('file', fileBlob, fileName);
+      form.append('suffix', fileSuffix); // png、jpg、jpeg、gif 或 webp
       const response = await fetch('/api/images', { method: 'POST', body: form });
       if (!response.ok) throw new Error('图片上传失败');
-      return (await response.json()).url;
+      const data = await response.json();
+      return { fileUrl: data.file_url, fileSize: fileBlob.size, fileName };
     },
   },
 });
 ```
 
-只有显式传入的处理器可能产生网络副作用，内置转换器不会读取 DOCX 中指向外部网络或本地文件的图片关系。返回的 URL 会校验协议。
+回调接收最终可显示的图片 Blob，`fileSuffix` 不带点，`fileName` 来自 DOCX 图片文件名；如果图片经过 WMF/EMF 等格式转换，后缀与文件名会改为转换后的格式。阈值按转换后的图片字节数判断，**只有大于** `maxInlineBytes` 才调用回调。HTML 的 `<img src>` 使用返回的 `fileUrl`；`fileSize` 和 `fileName` 可供调用方记录。只设置阈值或只设置回调时，仍维持默认 Base64；旧接口 `images.resolve` 单独配置时遵循其原有行为。阈值必须是非负整数字节数，设为 `0` 可处理全部图片。
 
-WMF/EMF/TIFF/SVG 等图片通过 `images.convert(image)` 显式接入格式转换，返回 `{bytes, mimeType}`（PNG/JPEG/GIF/WebP）。核心库不会自动启动进程或上传文档。转换后仍保留原始资源，图片解析器接收转换后的字节。
+浏览器普通 script 标签同样传入该选项：`DocxHtml.convertToHtml(file, { images: { maxInlineBytes, processLargeImage } })`。页面示例位于 `examples/browser.html`；若在 Web Worker 中执行转换，上传回调应定义在 Worker 内或通过消息协议转交主线程。已有的 `images.resolve(image)` 仍可用于**不区分大小**地为每张可显示图片指定 URL；同时配置大小回调与 `resolve` 时，按大小回调规则处理，大图使用回调，小图保持 Base64。
 
-MathType 公式若附带 WMF/EMF 预览，浏览器应用会自动转成 PNG。可编辑 OLE 对象中的 `Equation Native` / MTEF 会由核心库解析；转换成功时公式图片包含 `data-latex="..."`。npm 库调用方可以显式引入同一浏览器图片适配器：
+只有显式传入的处理器可能产生网络副作用，内置转换器不会读取 DOCX 中指向外部网络或本地文件的图片关系。返回的 URL 会校验协议，非法地址不会写入 HTML。
 
-OMML 公式在 npm 库和浏览器页面中默认输出 `<img src="data:image/svg+xml;base64,..." data-latex="...">`，可作为独立 HTML 打开。仅在确实需要语义标记时传入 `{ formulaOutput: 'mathml' }`。生成的 SVG 无需外部字体文件或 MathJax 页面脚本；`data-latex` 是结构重建结果，遇到不支持的公式结构时省略。
+DOCX 中的 **EMF 图片默认使用 [emf-converter](https://github.com/ChristopherVR/emf-converter) 转成 PNG**，HTML 的 `<img src>` 和 JSON 图片节点的 `src` 均使用转换后的地址；原始 EMF 仍保留在 `resources`。若设置 `images.convert(image)`，优先使用自定义结果；未返回结果时再尝试内置 EMF 转换。随后才按转换后的 PNG 字节数判断 `maxInlineBytes`，大图上传回调收到 `image/png`、`png` 后缀和 `.png` 文件名。浏览器演示页还会转换普通 WMF，并在资源 ZIP 中提供生成的 PNG。无法转换时保持原始文件及 `UNSUPPORTED_IMAGE` 提示。
+
+Node 环境中，[emf-converter](https://github.com/ChristopherVR/emf-converter#install) 可直接转换不含文字的 EMF；含文字的 EMF 可能需要调用方安装其可选的 `@napi-rs/canvas` 后端或提供字体，否则转换器会返回空结果。WMF、TIFF、SVG 等仍可通过 `images.convert(image)` 接入自定义格式转换，返回 `{bytes, mimeType}`（PNG/JPEG/GIF/WebP）。核心库不会自动启动进程或上传文档。
+
+MathType 公式若附带 WMF/EMF 预览，浏览器应用会自动转成 PNG。可编辑 OLE 对象中的 `Equation Native` / MTEF 会由核心库解析；转换成功时公式图片包含 `data-latex="..."`。npm 库调用方可显式引入同时处理普通 WMF 和 EMF 的图片适配器：
 
 ```ts
-import { convertDocx } from '@agile-hub/docx-html';
-import { convertMathTypePreview } from '@agile-hub/docx-html/browser-metafile';
+import { convertToHtml } from '@agile-hub/docx-html';
+import { convertMetafileImage } from '@agile-hub/docx-html/browser-metafile';
 
-const result = await convertDocx(file, { images: { convert: convertMathTypePreview } });
+const result = await convertToHtml(file, { images: { convert: convertMetafileImage } });
 ```
+
+原有 `convertMathTypePreview` 仍可用于只处理公式预览的场景。
+
+OMML 公式在 npm 库和浏览器页面中默认输出 `<img src="data:image/svg+xml;base64,..." data-latex="...">`，可作为独立 HTML 打开。仅在确实需要语义标记时传入 `{ formulaOutput: 'mathml' }`。生成的 SVG 无需外部字体文件或 MathJax 页面脚本；`data-latex` 是结构重建结果，遇到不支持的公式结构时省略。
 
 Node.js 可在安装 ImageMagick 后显式启用本地进程适配器，并指定可信的可执行文件路径：
 
 ```ts
-import { convertDocxFile, createImageMagickPreviewConverter } from '@agile-hub/docx-html/node';
+import { convertToHtmlFile, createImageMagickPreviewConverter } from '@agile-hub/docx-html/node';
 
-const result = await convertDocxFile('demo.docx', {
+const result = await convertToHtmlFile('demo.docx', {
   images: { convert: createImageMagickPreviewConverter('magick') },
 });
 ```
@@ -183,7 +213,7 @@ const result = await convertDocxFile('demo.docx', {
 | 标题 | 有效大纲级别 0–5 → h1–h6；显式正文阻断继承 | 不按样式名称猜测；单元格内统一 p |
 | 列表 | 常见多级列表、起始编号和跨段落续号 | 自定义编号模板和复杂重启规则为近似显示，复杂模板有警告 |
 | 表格 | 直接子节点解析、嵌套表格、行列合并、宽度、底色、边框、三线表、单元格边距/对齐 | 自动分页、复杂行高/文字方向、条件样式未完整实现 |
-| 图片 | 内嵌常规位图、尺寸、alt、Base64、自定义地址、图注 | 浮动图片按正文顺序显示；裁剪/旋转未完整实现 |
+| 图片 | 内嵌常规位图、EMF → PNG、尺寸、alt、Base64、自定义地址、图注 | 浮动图片按正文顺序显示；裁剪/旋转未完整实现；Node 含文字 EMF 可能需额外字体/画布后端 |
 | OMML 公式 | 默认自包含 SVG 图片 + 可提取的 `data-latex`；可选 MathML 输出；分式、根式、上下标、前置上下标、大算符、定界符、矩阵、方程组、重音、上下划线、上下限、组合字符、函数 | 不支持结构保留可解析内容并警告，省略不可靠的 `data-latex`；LaTeX 是重建结果 |
 | MathType/OLE | 保留原始对象和预览图，标记为公式；浏览器演示页自动将 WMF/EMF 预览转 PNG；从可编辑 OLE 的 MTEF 3/5 保守重建 LaTeX 并写入图片 `data-latex`；npm 可显式接入浏览器或 Node 图片适配器 | MTEF 模板只支持已实现的结构；缺少预览或图片转换失败时显示占位，无法准确重建时省略 `data-latex` |
 | 图形/文本框 | 保留可用位图回退；文本框内容按正文展开 | DrawingML/VML 几何图形、图表、SmartArt 暂未转换为 SVG，显示占位与警告 |
@@ -194,7 +224,7 @@ const result = await convertDocxFile('demo.docx', {
 
 ## 错误、进度和取消
 
-`convertDocx` 返回 Promise，文件结构错误、资源限制、图片回调异常等使 Promise 拒绝。`DocxError` 提供 `code` 和 `message`。内容兼容问题通常进入 `warnings`，不会伪装成完整支持。
+`convertToHtml` 返回 Promise，文件结构错误、资源限制、图片回调异常等使 Promise 拒绝。`DocxError` 提供 `code` 和 `message`。内容兼容问题通常进入 `warnings`，不会伪装成完整支持。
 
 进度依次为 `reading → extracting → parsing → rendering → complete`，只有成功后发送 complete。解析阶段 total 表示顶层段落/表格数量，不代表图片上传或整项任务百分比。
 
@@ -205,7 +235,7 @@ const result = await convertDocxFile('demo.docx', {
 ## 开发与验证
 
 - `src/` 按 contracts、domain、application、infrastructure、modules、rendering、adapters 分层；`apps/playground/` 放浏览器应用。
-- `tests/fixtures/docx.ts`、`ole.ts` 和 `wmf.ts` 用最小合成文件生成测试数据；`tests/integration/` 覆盖字体继承、表格合并、嵌套表格、图片、公式、资源限制等行为；`tests/unit/` 覆盖 OLE/MTEF、模块隔离及 Worker 生命周期。
+- `tests/fixtures/docx.ts`、`emf.ts`、`ole.ts` 和 `wmf.ts` 提供最小测试数据；`tests/integration/` 覆盖字体继承、表格合并、嵌套表格、图片、公式、资源限制等行为；`tests/unit/` 覆盖 OLE/MTEF、模块隔离及 Worker 生命周期。
 - `public/sample.docx` 是人工构造的可分发示例，不包含 Java 参考项目中的真实文档内容。
 - `node scripts/generate-sample.ts` 可在 Node 24 下重新生成示例。
 - `tests/e2e/` 为浏览器与下载验收，构建后运行 `npm run test:e2e`；首次运行需要安装 Playwright Chromium，或设置 `DOCX_TEST_BROWSER` 为本地 Chrome/Edge 的绝对路径。
@@ -213,3 +243,5 @@ const result = await convertDocxFile('demo.docx', {
 - Windows 沙箱若限制默认临时目录，可把 `TEMP`/`TMP` 指向项目下的 `.tmp` 后运行测试。
 
 模块划分、设计模式、依赖方向及 Java 对照见 [架构说明](docs/architecture.md)；功能归属和工程检查见 [开发指南](CONTRIBUTING.md)。
+
+原生图表：支持从 OOXML 图表缓存读取标准折线图并生成 SVG 图片，保留分类、曲线、数值坐标轴及数据表；HTML 和 JSON 均可使用。此能力不依赖 EMF 预览，也不重新计算嵌入工作簿。其他图表类型、组合图、堆积图及复杂样式尚未完整支持。图表图片超过上传阈值时，图片回调接收 SVG Blob 和 svg 后缀。

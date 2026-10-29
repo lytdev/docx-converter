@@ -2,10 +2,11 @@
 <html lang="zh-CN">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>script 标签调用示例</title></head>
 <body>
-  <h1>DOCX → HTML</h1>
+  <h1>DOCX → HTML / JSON</h1>
   <input id="file" type="file" accept=".docx">
   <p id="status" role="status">请选择 DOCX 文件</p>
   <button id="save" disabled>下载 HTML</button>
+  <button id="save-json" disabled>下载 JSON</button>
   <iframe id="preview" title="文档预览" sandbox="" style="display:block;width:100%;height:75vh;border:1px solid #ddd"></iframe>
   <!-- Run npm run build first. This bundle includes ZIP/XML dependencies. -->
   <script src="../dist/docx-html.umd.cjs"></script>
@@ -13,18 +14,29 @@
     const fileInput = document.getElementById('file');
     const status = document.getElementById('status');
     const save = document.getElementById('save');
+    const saveJson = document.getElementById('save-json');
     let html = '';
+    const images = {
+      maxInlineBytes: 512 * 1024,
+      // 如需上传大图片，在这里接入自己的服务；未提供回调时仍使用 Base64。
+      // async processLargeImage(fileBlob, fileSuffix, fileName) {
+      //   const form = new FormData(); form.append('file', fileBlob, fileName);
+      //   const response = await fetch('/api/images', { method: 'POST', body: form });
+      //   if (!response.ok) throw new Error('图片上传失败');
+      //   return { fileUrl: (await response.json()).file_url, fileSize: fileBlob.size, fileName };
+      // },
+    };
     fileInput.onchange = async () => {
       const file = fileInput.files[0]; if (!file) return;
-      save.disabled = true; fileInput.disabled = true;
+      save.disabled = true; saveJson.disabled = true; fileInput.disabled = true;
       document.getElementById('preview').srcdoc = '';
       status.textContent = '转换中…';
       try {
-        const result = await DocxHtml.convertDocx(file, { title: file.name });
+        const result = await DocxHtml.convertToHtml(file, { title: file.name, images });
         html = result.html;
         document.getElementById('preview').srcdoc = html;
         status.textContent = `完成，${result.warnings.length} 条提示：` + result.warnings.map(w => w.message).join('；');
-        save.disabled = false;
+        save.disabled = false; saveJson.disabled = false;
       } catch (error) { status.textContent = error.message; }
       finally { fileInput.disabled = false; }
     };
@@ -32,6 +44,17 @@
       const url = URL.createObjectURL(new Blob([html], {type: 'text/html;charset=utf-8'}));
       const a = document.createElement('a'); a.href = url; a.download = 'document.html'; a.click();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
+    };
+    saveJson.onclick = async () => {
+      const file = fileInput.files[0]; if (!file) return;
+      saveJson.disabled = true;
+      try {
+        const result = await DocxHtml.convertToJson(file, { title: file.name, images });
+        const url = URL.createObjectURL(new Blob([JSON.stringify(result, null, 2)], { type: 'application/json;charset=utf-8' }));
+        const a = document.createElement('a'); a.href = url; a.download = file.name.replace(/\.docx$/i, '') + '.json'; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      } catch (error) { status.textContent = error.message; }
+      finally { saveJson.disabled = false; }
     };
   </script>
 </body>

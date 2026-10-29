@@ -1,7 +1,7 @@
 {
   "name": "@agile-hub/docx-html",
   "version": "0.1.0",
-  "description": "TypeScript DOCX to HTML converter with fonts, tables, images and OMML math",
+  "description": "TypeScript DOCX to HTML and JSON converter with fonts, tables, images and OMML math",
   "type": "module",
   "files": [
     "dist",
