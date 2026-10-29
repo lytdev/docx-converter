@@ -16,6 +16,7 @@
     const save = document.getElementById('save');
     const saveJson = document.getElementById('save-json');
     let html = '';
+    const drawingOutput = 'png'; // 流程图默认 PNG；可改为 'svg'
     const images = {
       maxInlineBytes: 512 * 1024,
       // 如需上传大图片，在这里接入自己的服务；未提供回调时仍使用 Base64。
@@ -32,7 +33,7 @@
       document.getElementById('preview').srcdoc = '';
       status.textContent = '转换中…';
       try {
-        const result = await DocxHtml.convertToHtml(file, { title: file.name, images });
+        const result = await DocxHtml.convertToHtml(file, { title: file.name, images, drawingOutput });
         html = result.html;
         document.getElementById('preview').srcdoc = html;
         status.textContent = `完成，${result.warnings.length} 条提示：` + result.warnings.map(w => w.message).join('；');
@@ -49,7 +50,7 @@
       const file = fileInput.files[0]; if (!file) return;
       saveJson.disabled = true;
       try {
-        const result = await DocxHtml.convertToJson(file, { title: file.name, images });
+        const result = await DocxHtml.convertToJson(file, { title: file.name, images, drawingOutput });
         const url = URL.createObjectURL(new Blob([JSON.stringify(result, null, 2)], { type: 'application/json;charset=utf-8' }));
         const a = document.createElement('a'); a.href = url; a.download = file.name.replace(/\.docx$/i, '') + '.json'; a.click();
         setTimeout(() => URL.revokeObjectURL(url), 5000);

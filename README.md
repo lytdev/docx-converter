@@ -245,3 +245,17 @@ const result = await convertToHtmlFile('demo.docx', {
 模块划分、设计模式、依赖方向及 Java 对照见 [架构说明](docs/architecture.md)；功能归属和工程检查见 [开发指南](CONTRIBUTING.md)。
 
 原生图表：支持从 OOXML 图表缓存读取标准折线图并生成 SVG 图片，保留分类、曲线、数值坐标轴及数据表；HTML 和 JSON 均可使用。此能力不依赖 EMF 预览，也不重新计算嵌入工作簿。其他图表类型、组合图、堆积图及复杂样式尚未完整支持。图表图片超过上传阈值时，图片回调接收 SVG Blob 和 svg 后缀。
+
+Word 组合图形：支持 DrawingML 嵌套组合中的矩形、圆角矩形、椭圆、直线及三角箭头，将文本框文字和图形一起生成图片。第二个参数 `drawingOutput` 默认为 `'png'`，可指定 `'svg'`；HTML、JSON 和 Node 文件辅助方法共用配置。此选项仅控制组合图形，不改变公式或原生图表的格式。
+
+```ts
+await convertToHtml(file); // 默认 PNG
+await convertToHtml(file, { drawingOutput: 'svg' });
+await convertToJson(file, { drawingOutput: 'png' });
+// Node 入口同样支持：convertToHtmlFile(path, { drawingOutput: 'svg' })
+//                    convertToJsonFile(path, { drawingOutput: 'png' })
+```
+
+PNG 使用白色背景，默认按显示尺寸的 3 倍分辨率生成，HTML/JSON 中的显示尺寸不变；超大图按最长边 8192 像素、约 1600 万像素的上限等比例降低倍率。浏览器使用 Canvas（Worker 使用 OffscreenCanvas），Node 使用依赖 `@napi-rs/canvas`，中文字体需运行环境提供。栅格化失败时返回 `DRAWING_PNG_FAILED` 警告，不静默改为 SVG。`images.processLargeImage` 在格式转换后检查最终字节大小，接收与输出格式一致的 Blob、后缀和文件名；未提供回调时使用 Base64。
+
+保留组合坐标缩放和连接线方向，文字按文本框宽度近似换行；复杂字体混排、主题样式、旋转、自定义路径和其他形状尚未完整支持。遇到不支持的组合结构时返回 `UNSUPPORTED_GROUP_DRAWING` 警告并保留可读取的文本框文字，不再输出空图片占位。

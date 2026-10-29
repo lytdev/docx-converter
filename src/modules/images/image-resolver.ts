@@ -4,6 +4,7 @@ import type { RenderContext, ResourceReader } from '../../contracts/ports.js';
 import { safeUrl } from '../../shared/markup.js';
 import { rasterMime, base64 } from './raster-codec.js';
 import { convertMetafileToPng } from './metafile-rasterizer.js';
+import { drawingToPng } from './drawing-rasterizer.js';
 const suffixes: Record<string, string[]> = {
   'image/png': ['png'], 'image/jpeg': ['jpg', 'jpeg', 'jpe'], 'image/gif': ['gif'], 'image/webp': ['webp'],
 };
@@ -21,12 +22,21 @@ export class ImageResolver {
   constructor(private readonly resources: ResourceReader, private readonly context: RenderContext, private readonly options: ConversionOptions) {}
   async resolve(n: ImageNode): Promise<string | undefined> {
     if (n.generatedSvg) {
-      const bytes = new TextEncoder().encode(n.generatedSvg);
+      const png = n.generatedKind === 'drawing' && this.options.drawingOutput !== 'svg';
+      let bytes: Uint8Array;
+      try {
+        bytes = png ? await drawingToPng(n.generatedSvg, n.width ?? 0, n.height ?? 0) : new TextEncoder().encode(n.generatedSvg);
+      } catch {
+        this.context.warn('DRAWING_PNG_FAILED', '流程图无法生成 PNG；请检查 Canvas/字体环境，或设置 drawingOutput: svg');
+        return undefined;
+      }
+      this.context.checkAbort();
+      const mimeType = png ? 'image/png' : 'image/svg+xml', suffix = png ? 'png' : 'svg';
       const images = this.options.images;
-      let src = `data:image/svg+xml;base64,${base64(bytes)}`;
+      let src = `data:${mimeType};base64,${base64(bytes)}`;
       if (!images?.processLargeImage || images.maxInlineBytes === undefined || bytes.length <= images.maxInlineBytes) return src;
       if (images?.processLargeImage && images.maxInlineBytes !== undefined && bytes.length > images.maxInlineBytes) {
-        const result = await images.processLargeImage(new Blob([bytes], { type: 'image/svg+xml' }), 'svg', `${n.path?.split('/').pop()?.replace(/\.xml$/, '') || 'chart'}.svg`);
+        const result = await images.processLargeImage(new Blob([new Uint8Array(bytes)], { type: mimeType }), suffix, `${n.path?.split('/').pop()?.replace(/\.xml$/, '') || 'drawing'}.${suffix}`);
         this.context.checkAbort();
         src = result?.fileUrl;
       }

@@ -8,7 +8,7 @@ import { color, pt } from '../../shared/units.js';
 interface Expression { ml: string; tex: string; }
 const texText = (s: string): string => s.replace(/[\\{}$%&#_^~]/g, c => ({ '\\': '\\backslash ', '~': '\\sim ', '^': '\\hat{}' }[c] ?? `\\${c}`));
 const symbols: Record<string, string> = { 'α': '\\alpha ', 'β': '\\beta ', 'γ': '\\gamma ', 'δ': '\\delta ', 'ε': '\\epsilon ', 'θ': '\\theta ', 'λ': '\\lambda ', 'μ': '\\mu ', 'π': '\\pi ', 'σ': '\\sigma ', 'φ': '\\phi ', 'ω': '\\omega ', 'Δ': '\\Delta ', 'Σ': '\\Sigma ', 'Ω': '\\Omega ', '∞': '\\infty ', '≤': '\\le ', '≥': '\\ge ', '≠': '\\ne ', '±': '\\pm ', '×': '\\times ', '÷': '\\div ', '∑': '\\sum ', '∏': '\\prod ', '∫': '\\int ', '∂': '\\partial ', '∈': '\\in ', '→': '\\to ' };
-const latex = (s: string): string => [...s].map(c => symbols[c] ?? texText(c)).join('');
+const latex = (s: string): string => [...s].map(c => /\s/.test(c) ? '\\ ' : symbols[c] ?? texText(c)).join('');
 export function convertMath(root: X, diagnostics: DiagnosticSink, display = false, inherited: RunStyle = {}): MathNode {
   let complete = true;
   const c = (e: X | undefined, name: string) => child(e, name, NS.m);
@@ -36,7 +36,7 @@ export function convertMath(root: X, diagnostics: DiagnosticSink, display = fals
       const wrap = (s: string) => css ? `<mstyle style="${esc(css)}">${s}</mstyle>` : s;
       if (normal) return { ml: wrap(`<mtext mathvariant="${variant}">${esc(text)}</mtext>`), tex: `\\text{${texText(text)}}` };
       const tokens = text.match(/\d+(?:\.\d+)?|[\p{L}\p{M}]+|\s+|./gu) ?? [];
-      return { ml: wrap(tokens.map(t => /^\s+$/.test(t) ? '<mspace width="0.25em"/>' : /^\d/.test(t) ? `<mn>${esc(t)}</mn>` : /^[\p{L}\p{M}]/u.test(t) ? `<mi mathvariant="${variant}">${esc(t)}</mi>` : `<mo>${esc(t)}</mo>`).join('')), tex: bold ? `\\mathbf{${latex(text)}}` : latex(text) };
+      return { ml: wrap(tokens.map(t => /^\s+$/.test(t) ? `<mspace width="${t.length * 0.25}em"/>` : /^\d/.test(t) ? `<mn>${esc(t)}</mn>` : /^[\p{L}\p{M}]/u.test(t) ? `<mi mathvariant="${variant}">${esc(t)}</mi>` : `<mo>${esc(t)}</mo>`).join('')), tex: bold ? `\\mathbf{${latex(text)}}` : latex(text) };
     }
     if (tag === 'f') {
       const a = arg(e, 'num'), b = arg(e, 'den'), type = mv(c(c(e, 'fPr'), 'type'));
@@ -72,7 +72,59 @@ export function convertMath(root: X, diagnostics: DiagnosticSink, display = fals
     }
     if (tag === 'm' || tag === 'eqArr') {
       const rows = tag === 'm' ? children(e).filter(n => is(n, 'mr', NS.m)).map(r => children(r).filter(n => is(n, 'e', NS.m)).map(content)) : children(e).filter(n => is(n, 'e', NS.m)).map(n => [content(n)]);
-      return { ml: `<mtable>${rows.map(r => `<mtr>${r.map(a => `<mtd>${a.ml}</mtd>`).join('')}</mtr>`).join('')}</mtable>`, tex: `\\begin{${tag === 'm' ? 'matrix' : 'aligned'}}${rows.map(r => r.map(a => a.tex).join('&')).join('\\\\')}\\end{${tag === 'm' ? 'matrix' : 'aligned'}}` };
+      if (tag === 'm') {
+        // OMML column properties apply to `count` successive columns. Missing
+        // properties use the Word default (center), not an inferred equation layout.
+        const columnCount = Math.max(1, ...rows.map(r => r.length));
+        const alignments: string[] = [];
+        for (const column of children(c(c(e, 'mPr'), 'mcs')).filter(n => is(n, 'mc', NS.m))) {
+          const pr = c(column, 'mcPr'), value = mv(c(pr, 'mcJc'));
+          const align = value === 'left' || value === 'right' ? value : 'center';
+          const count = Number(mv(c(pr, 'count')) ?? 1);
+          if (Number.isSafeInteger(count) && count > 0) {
+            const repeat = Math.min(count, columnCount - alignments.length);
+            for (let i = 0; i < repeat; i++) alignments.push(align);
+          }
+        }
+        while (alignments.length < columnCount) alignments.push('center');
+        // A common Word layout uses spaces in a one-column matrix to indent
+        // continuation equations. Font-dependent spaces cannot preserve that
+        // intent in SVG: split only this narrow pattern at its top-level '='.
+        if (columnCount === 1 && alignments[0] === 'left' && rows.length > 1) {
+          const cells = children(e).filter(n => is(n, 'mr', NS.m)).map(r => c(r, 'e')!);
+          const split = cells.map(cell => {
+            const parts = children(cell).filter(n => !n.localName?.endsWith('Pr'));
+            const index = parts.findIndex(n => is(n, 'r', NS.m) && (c(n, 't')?.textContent ?? '').includes('='));
+            if (index < 0) return undefined;
+            const run = parts[index], texts = children(run).filter(n => is(n, 't', NS.m));
+            if (texts.length !== 1) return undefined;
+            const text = texts[0].textContent ?? '', at = text.indexOf('=');
+            const fragment = (value: string): X => {
+              const copy = run.cloneNode(true) as X;
+              c(copy, 't')!.textContent = value;
+              return copy;
+            };
+            const before = [...parts.slice(0, index), fragment(text.slice(0, at))];
+            const after = [fragment(text.slice(at)), ...parts.slice(index + 1)];
+            const whitespaceOnly = before.every(n => is(n, 'r', NS.m) && children(n).filter(t => is(t, 't', NS.m)).every(t => !t.textContent?.trim()));
+            return { before, after, whitespaceOnly, indented: before.some(n => /\s/.test(c(n, 't')?.textContent ?? '')) };
+          });
+          if (split[0] && !split[0].whitespaceOnly && split.slice(1).every(s => s?.whitespaceOnly && s.indented)) {
+            const aligned = split.map((s, i) => [i === 0 ? join(s!.before.map(convert)) : { ml: '', tex: '' }, join(s!.after.map(convert))]);
+            return {
+              ml: `<mtable columnalign="right left" columnspacing="0em">${aligned.map(r => `<mtr>${r.map(a => `<mtd><mrow>${a.ml}</mrow></mtd>`).join('')}</mtr>`).join('')}</mtable>`,
+              tex: `\\begin{aligned}${aligned.map(r => r.map(a => a.tex).join('&')).join('\\\\')}\\end{aligned}`,
+            };
+          }
+        }
+        const body = rows.map(r => r.map(a => a.tex).join('&')).join('\\\\');
+        const centered = alignments.every(a => a === 'center');
+        return {
+          ml: `<mtable columnalign="${alignments.join(' ')}">${rows.map(r => `<mtr>${r.map(a => `<mtd>${a.ml}</mtd>`).join('')}</mtr>`).join('')}</mtable>`,
+          tex: centered ? `\\begin{matrix}${body}\\end{matrix}` : `\\begin{array}{${alignments.map(a => a[0]).join('')}}${body}\\end{array}`,
+        };
+      }
+      return { ml: `<mtable>${rows.map(r => `<mtr>${r.map(a => `<mtd>${a.ml}</mtd>`).join('')}</mtr>`).join('')}</mtable>`, tex: `\\begin{aligned}${rows.map(r => r.map(a => a.tex).join('&')).join('\\\\')}\\end{aligned}` };
     }
     if (['acc', 'bar', 'groupChr'].includes(tag)) {
       const a = arg(e, 'e'), pr = c(e, `${tag}Pr`), bottom = mv(c(pr, 'pos')) === 'bot';

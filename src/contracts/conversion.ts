@@ -19,6 +19,8 @@ export interface ConversionOptions {
   output?: 'document' | 'fragment';
   /** Default image: embed self-contained SVG for OMML; mathml keeps the prior semantic markup. */
   formulaOutput?: 'image' | 'mathml';
+  /** Word grouped drawings: PNG (default, 3x display resolution) or SVG. */
+  drawingOutput?: 'png' | 'svg';
   title?: string;
   images?: {
     /** Byte threshold for processLargeImage; equal-sized images stay inline. Requires processLargeImage to offload. */

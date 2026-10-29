@@ -19,6 +19,8 @@ export interface JsonConversionResult {
 }
 
 async function parseDocx(input: DocxInput, options: ConversionOptions) {
+  if (options.drawingOutput !== undefined && !['png', 'svg'].includes(options.drawingOutput))
+    throw new DocxError('INVALID_DRAWING_OUTPUT', 'drawingOutput 必须为 png 或 svg');
   const maxInlineBytes = options.images?.maxInlineBytes;
   if (maxInlineBytes !== undefined && (!Number.isSafeInteger(maxInlineBytes) || maxInlineBytes < 0))
     throw new DocxError('INVALID_IMAGE_LIMIT', 'maxInlineBytes 必须是非负整数（字节）');

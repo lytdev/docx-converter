@@ -3,9 +3,18 @@ import { attr, descendants, NS, number } from '../../infrastructure/xml/dom.js';
 import type { X } from '../../infrastructure/xml/dom.js';
 import type { ParseContext } from './parse-context.js';
 import { CHART_NS, parseChart } from './chart-parser.js';
+import { GROUP_NS, parseGroupDrawing } from './group-drawing-parser.js';
 export class DrawingParser {
   constructor(private readonly context: ParseContext, private readonly parseParagraphs: (parent: X) => Paragraph[]) {}
   parse(el: X, formula: boolean): Inline[] {
+    const group = descendants(el, 'wgp', GROUP_NS)[0];
+    if (group) {
+      const extent = descendants(el, 'extent', NS.wp)[0];
+      const image = parseGroupDrawing(group, number(extent?.getAttribute('cx') ?? undefined) / 9525, number(extent?.getAttribute('cy') ?? undefined) / 9525);
+      if (image) { this.context.stats.images++; return [image]; }
+      this.context.operations.warn('UNSUPPORTED_GROUP_DRAWING', '组合图形含暂不支持的结构，已保留可读取的文字');
+      return descendants(group, 'txbxContent').flatMap(box => this.parseParagraphs(box).flatMap(p => [...p.children, { kind: 'break' as const }]));
+    }
     const chart = descendants(el, 'chart', CHART_NS)[0];
     if (chart) {
       const extent = descendants(el, 'extent', NS.wp)[0];

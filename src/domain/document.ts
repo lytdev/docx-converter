@@ -15,6 +15,7 @@ export interface ImageNode {
   src?: string;
   /** SVG constructed from supported chart data by the parser. */
   generatedSvg?: string;
+  generatedKind?: 'drawing' | 'chart';
 }
 export interface MathNode {
   kind: 'math'; mathml: string; latex?: string; display: boolean;
