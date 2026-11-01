@@ -1,4 +1,5 @@
-import { downloadHtml, downloadJson, downloadResources } from './downloads';
+import { downloadHtml, downloadJson, downloadPdf, downloadResources } from './downloads';
+import { convertToPdf } from '../../src/index';
 import type { PlaygroundView } from './ui/view';
 import type { ConversionWorkerClient } from './worker/client';
 import type { PlaygroundConversionResult } from './worker/protocol';
@@ -8,16 +9,19 @@ export class PlaygroundController {
   private generation = 0;
   private result?: PlaygroundConversionResult;
   private filename = 'document';
+  private pdfInput?: File | string;
 
   constructor(private readonly view: PlaygroundView, private readonly worker: ConversionWorkerClient) {}
 
   start(): void {
     this.view.bind({
+      url: url => { void this.convertUrl(url); },
       file: file => { void this.convert(file); },
       sample: () => { void this.sample(); },
       cancel: () => { this.generation++; this.worker.cancel(); this.view.cancelled(); },
       download: () => { if (this.result) downloadHtml(this.result, this.filename); },
       json: () => { if (this.result) downloadJson(this.result, this.filename); },
+      pdf: () => { void this.makePdf(); },
       resources: () => { if (this.result) downloadResources(this.result, this.filename); },
       copy: () => { void this.copy(); },
     });
@@ -28,8 +32,22 @@ export class PlaygroundController {
     this.worker.cancel(); this.result = undefined; this.view.reset();
     return id;
   }
+  private async convertUrl(url: string): Promise<void> {
+    const id = this.reset();
+    this.pdfInput = url;
+    this.filename = '网络文档'; this.view.filename(url);
+    this.view.loading('下载并转换文档…', true);
+    try {
+      const result = await this.worker.convert(url, this.filename, event => {
+        if (id === this.generation) this.view.updateProgress(event);
+      });
+      if (id !== this.generation) return;
+      this.result = result; this.view.show(result);
+    } catch (error) { if (id === this.generation) this.view.fail(error); }
+  }
   private async convert(file: File): Promise<void> {
     const id = this.reset();
+    this.pdfInput = file;
     this.filename = file.name.replace(/\.docx$/i, '') || 'document';
     this.view.filename(file.name);
     if (!/\.docx$/i.test(file.name)) return this.view.fail('请选择 .docx 文件。');
@@ -44,6 +62,17 @@ export class PlaygroundController {
       if (id !== this.generation) return;
       this.result = result; this.view.show(result);
     } catch (error) { if (id === this.generation) this.view.fail(error); }
+  }
+  private async makePdf(): Promise<void> {
+    if (!this.pdfInput) return;
+    const input = this.pdfInput;
+    this.view.loading('正在生成 PDF…');
+    try {
+      const pdf = await convertToPdf(input, { title: this.filename });
+      if (this.pdfInput !== input) return;
+      downloadPdf(pdf.bytes, this.filename);
+      this.view.loading('PDF 已下载');
+    } catch (error) { this.view.fail(error); }
   }
   private async sample(): Promise<void> {
     const id = this.reset();

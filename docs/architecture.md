@@ -121,7 +121,7 @@ View 在预览标签页可见时挂载新的 sandbox iframe；源码标签页下
 1. **样式解析**：docDefaults → 段落样式 basedOn 链 → 字符样式 → 直接属性。缺失值与 false 区分；主题引用转换为实际字体/颜色。`RunStyle` 中保留中文/西文字体，渲染时按 Unicode 字符类别拆分。
 2. **表格网格**：直接遍历 tr/tc，维护逻辑列位置及上一行的纵向合并起点。合并宽度匹配时更新 rowspan，最后按完整合并区域计算外框/内框。单元格明确 none/nil 优先。嵌套表格独立解析。单元格 `w:shd` 的 `w:fill="auto"` 不生成黑色背景；明确的十六进制填充和 `w:themeFill` 分别解析，避免混用图案颜色 `w:themeColor`。
 3. **公式**：OMML 递归生成内部 MathML，并同步重建 LaTeX；HTML 渲染器默认用 MathJax 将内部 MathML 转成字形路径内嵌的 SVG，再作为 `data:` 图片输出。段落字号由外层 HTML 继承，不重复传入 SVG 排版；独立 SVG 的 viewBox 留有字形外溢余量，避免图片裁切。显式设置 `formulaOutput: 'mathml'` 可保留语义标记。旧版 OLE 公式按包内关系读取，不执行对象；有界 CFB 读取器只取 `Equation Native` 流，MTEF 3/5 解析器保守重建 LaTeX，再检查 WMF 标准字体数字是否与预览明显冲突。结果附在对应图片的 `data-latex`；解析失败或冲突时保留图片，省略属性。OMML 遇到不支持结构时也省略不可靠的 LaTeX。
-4. **图片**：原始资源永远可回收；能识别的位图可直接嵌入。普通 EMF 在默认路径按需加载 `emf-converter` 转成 PNG，自定义 `images.convert` 优先；WMF 等其他格式仍可用 convert 适配器，地址处理交给 resolve。浏览器演示应用使用同一转换器处理普通 WMF/EMF 及公式预览；Node 入口还导出显式启用的 ImageMagick 公式预览适配器。失败时沿用占位及诊断。
+4. **图片**：原始资源永远可回收；能识别的位图可直接嵌入。普通 EMF 在默认路径按需加载 `emf-converter` 转成 PNG，自定义 `imageHandler.convert` 优先；WMF 等其他格式仍可用 convert 适配器，地址处理交给 resolve。浏览器演示应用使用同一转换器处理普通 WMF/EMF 及公式预览；Node 入口还导出显式启用的 ImageMagick 公式预览适配器。失败时沿用占位及诊断。
 5. **后处理**：在结构模型渲染中识别相邻图注与表注；合并相邻同样式文本，不使用按序号对齐原始 Word 和 HTML 的补丁。
 6. **环境隔离**：主入口无 Node 内置模块；Node 路径入口单独导出。网页在 Worker 中调用同一个主入口，取消时终止 Worker。npm 调用方自行选择执行环境。
 
@@ -148,7 +148,7 @@ View 在预览标签页可见时挂载新的 sandbox iframe；源码标签页下
 ## 后续适配边界
 
 - MTEF 的更多模板、符号字体和复杂数学排版需要独立验证；不能把图片 OCR 猜测当作准确 LaTeX。当前 WMF 数字核对只能发现一部分明显冲突，并非公式等价性证明。
-- 普通 EMF 默认转 PNG；WMF/EMF 也可通过现有 images.convert 接口在浏览器转成 PNG，或在 Node 显式启用 ImageMagick 公式预览适配器。图片先转换成可显示字节，再按 maxInlineBytes 判断是否调用 processLargeImage；未提供回调时保持 Base64。默认核心库不会上传文件或启动本地进程。
+- 普通 EMF 默认转 PNG；WMF/EMF 也可通过现有 images.convert 接口在浏览器转成 PNG，或在 Node 显式启用 ImageMagick 公式预览适配器。图片先转换成可显示字节，再按 base64ImageSize 判断是否调用 processLargeImage；未提供回调时保持 Base64。默认核心库不会上传文件或启动本地进程。
 - DrawingML 图形需要新增模型与 SVG 几何渲染；不能直接插入来源文档的任意 SVG/HTML。
 - 若需要语义化内容导入，可新增 Mammoth adapter，但不依赖其内部 AST，也不以它补写格式后的输出作为样式保真模式。
 

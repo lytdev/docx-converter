@@ -1,5 +1,5 @@
-/** Browser File/Blob and Node Buffer (a Uint8Array) are accepted. */
-export type DocxInput = Blob | ArrayBuffer | Uint8Array;
+/** HTTP(S) URL, browser File/Blob, ArrayBuffer or Node Buffer (a Uint8Array). */
+export type DocxInput = Blob | ArrayBuffer | Uint8Array | string;
 export interface Diagnostic { code: string; message: string; part?: string; }
 export interface ProgressEvent {
   stage: 'reading' | 'extracting' | 'parsing' | 'rendering' | 'complete';
@@ -22,9 +22,9 @@ export interface ConversionOptions {
   /** Word grouped drawings: PNG (default, 3x display resolution) or SVG. */
   drawingOutput?: 'png' | 'svg';
   title?: string;
-  images?: {
-    /** Byte threshold for processLargeImage; equal-sized images stay inline. Requires processLargeImage to offload. */
-    maxInlineBytes?: number;
+  imageHandler?: {
+    /** Defaults to 2048 bytes (2 KB). Images at or below the threshold stay Base64 even with processLargeImage; larger ones use that callback when supplied. */
+    base64ImageSize?: number;
     /** Receives the final displayable image after any format conversion; its fileUrl becomes <img src>. */
     processLargeImage?: LargeImageHandler;
     /** Called only for browser-supported raster formats. Returned URLs are checked. */
@@ -42,4 +42,20 @@ export interface ConversionResult {
   /** Includes unsupported original images and embedded OLE files for caller recovery. */
   resources: Resource[];
   stats: { paragraphs: number; tables: number; images: number; formulas: number; };
+}
+export interface PdfConversionOptions extends ConversionOptions {
+  pdf?: {
+    format?: 'a4' | 'letter';
+    landscape?: boolean;
+    /** Page margins in millimeters. Default 15. */
+    margin?: number;
+    /** Browser rasterization scale, default 2 (1–4). */
+    scale?: number;
+    /** Node only: local Chrome/Edge executable; omitted uses installed Chrome. */
+    executablePath?: string;
+  };
+}
+export interface PdfConversionResult extends Omit<ConversionResult, 'html'> {
+  bytes: Uint8Array;
+  mimeType: 'application/pdf';
 }

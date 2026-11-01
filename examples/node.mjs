@@ -6,7 +6,7 @@ if (!input) throw new Error('Usage: node examples/node.mjs input.docx [output.ht
 const output = process.argv[3] ?? 'output.html';
 const options = {
   title: '转换文档',
-  ...(process.env.DOCX_MAGICK ? { images: { convert: createImageMagickPreviewConverter(process.env.DOCX_MAGICK) } } : {}),
+  ...(process.env.DOCX_MAGICK ? { imageHandler: { convert: createImageMagickPreviewConverter(process.env.DOCX_MAGICK) } } : {}),
   onProgress: event => console.log(event.stage, event.completed ?? '', event.total ?? ''),
 };
 const json = output.toLowerCase().endsWith('.json');

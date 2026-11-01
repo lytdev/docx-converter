@@ -34,8 +34,8 @@ describe('DOCX conversion', () => {
     const input = docx(p(image()), { rels: `<Relationship Id="image1" Type="${R}/image" Target="media/photo.png"/>`, media: { 'photo.png': png } });
     const stages: string[] = [];
     const calls: string[] = [];
-    const result = await convertToJson(input, { output: 'fragment', title: 'photo', onProgress: event => stages.push(event.stage), images: {
-      maxInlineBytes: 0,
+    const result = await convertToJson(input, { output: 'fragment', title: 'photo', onProgress: event => stages.push(event.stage), imageHandler: {
+      base64ImageSize: 0,
       processLargeImage: async (blob, suffix, name) => {
         calls.push(`${blob.size}:${suffix}:${name}`);
         return { fileUrl: '/uploads/photo.png' };
@@ -47,7 +47,7 @@ describe('DOCX conversion', () => {
     expect(calls).toEqual([`${png.length}:png:photo.png`]);
     expect(result.resources).toEqual([{ path: 'word/media/photo.png', mimeType: 'image/png', size: png.length }]);
     expect(stages).toEqual(['reading', 'extracting', 'parsing', 'parsing', 'rendering', 'complete']);
-    const unsafe = await convertToJson(input, { images: { maxInlineBytes: 0, processLargeImage: () => ({ fileUrl: 'javascript:alert(1)' }) } });
+    const unsafe = await convertToJson(input, { imageHandler: { base64ImageSize: 0, processLargeImage: () => ({ fileUrl: 'javascript:alert(1)' }) } });
     const unsafeBlock = unsafe.document.blocks[0];
     if (unsafeBlock.kind !== 'paragraph' || unsafeBlock.children[0].kind !== 'image') throw new Error('Expected image');
     expect(unsafeBlock.children[0].src).toBeUndefined();
@@ -135,9 +135,9 @@ describe('DOCX conversion', () => {
   });
   it('calls async image resolver and rejects unsafe URL results', async () => {
     const input = docx(p(image()), { rels: `<Relationship Id="image1" Type="${R}/image" Target="media/a.png"/>`, media: { 'a.png': png } });
-    const good = await convertToHtml(input, { images: { resolve: async image => `/assets/${image.path.split('/').pop()}` } });
+    const good = await convertToHtml(input, { imageHandler: { resolve: async image => `/assets/${image.path.split('/').pop()}` } });
     expect(good.html).toContain('src="/assets/a.png"');
-    const bad = await convertToHtml(input, { images: { resolve: () => 'javascript:alert(1)' } });
+    const bad = await convertToHtml(input, { imageHandler: { resolve: () => 'javascript:alert(1)' } });
     expect(bad.html).not.toContain('javascript:'); expect(bad.warnings.some(w => w.code === 'UNSAFE_IMAGE_URL')).toBe(true);
   });
   it('offloads only images larger than the configured byte limit', async () => {
@@ -147,9 +147,9 @@ describe('DOCX conversion', () => {
       calls.push({ size: blob.size, suffix, name, type: blob.type, bytes: new Uint8Array(await blob.arrayBuffer()) });
       return { fileUrl: 'https://cdn.example.com/photo.png', fileSize: blob.size, fileName: name };
     };
-    const equal = await convertToHtml(input, { images: { maxInlineBytes: png.length, processLargeImage, resolve: () => '/should-not-replace-small-images.png' } });
+    const equal = await convertToHtml(input, { imageHandler: { base64ImageSize: png.length, processLargeImage, resolve: () => '/should-not-replace-small-images.png' } });
     expect(equal.html).toContain('data:image/png;base64,'); expect(calls).toHaveLength(0);
-    const large = await convertToHtml(input, { images: { maxInlineBytes: png.length - 1, processLargeImage, resolve: () => '/should-not-replace-large-images.png' } });
+    const large = await convertToHtml(input, { imageHandler: { base64ImageSize: png.length - 1, processLargeImage, resolve: () => '/should-not-replace-large-images.png' } });
     expect(elements(large.html, 'img')[0].getAttribute('src')).toBe('https://cdn.example.com/photo.png');
     expect(large.html).not.toContain('data:image/png;base64,');
     expect(calls).toEqual([{ size: png.length, suffix: 'png', name: 'photo.png', type: 'image/png', bytes: png }]);
@@ -157,17 +157,17 @@ describe('DOCX conversion', () => {
   });
   it('keeps Base64 when the large-image callback or limit is absent', async () => {
     const input = docx(p(image()), { rels: `<Relationship Id="image1" Type="${R}/image" Target="media/a.png"/>`, media: { 'a.png': png } });
-    const withoutCallback = await convertToHtml(input, { images: { maxInlineBytes: 0 } });
+    const withoutCallback = await convertToHtml(input, { imageHandler: { base64ImageSize: 0 } });
     expect(withoutCallback.html).toContain('data:image/png;base64,');
     let called = false;
-    const withoutLimit = await convertToHtml(input, { images: { processLargeImage: () => { called = true; return { fileUrl: '/uploaded/a.png' }; } } });
+    const withoutLimit = await convertToHtml(input, { imageHandler: { processLargeImage: () => { called = true; return { fileUrl: '/uploaded/a.png' }; } } });
     expect(withoutLimit.html).toContain('data:image/png;base64,'); expect(called).toBe(false);
   });
   it('passes converted image bytes and filename to the large-image callback', async () => {
     const input = docx(p(image()), { rels: `<Relationship Id="image1" Type="${R}/image" Target="media/a.wmf"/>`, media: { 'a.wmf': new Uint8Array([1, 2, 3]) } });
     const received: string[] = [];
-    const result = await convertToHtml(input, { images: {
-      maxInlineBytes: 0,
+    const result = await convertToHtml(input, { imageHandler: {
+      base64ImageSize: 0,
       convert: () => ({ bytes: png, mimeType: 'image/png' }),
       processLargeImage: async (blob, suffix, name) => { received.push(blob.type, String(blob.size), suffix, name); return { fileUrl: '/uploads/a.png' }; },
     } });
@@ -176,14 +176,14 @@ describe('DOCX conversion', () => {
   });
   it('rejects invalid image limits and unsafe uploaded image URLs', async () => {
     const input = docx(p(image()), { rels: `<Relationship Id="image1" Type="${R}/image" Target="media/a.png"/>`, media: { 'a.png': png } });
-    await expect(convertToHtml(input, { images: { maxInlineBytes: -1 } })).rejects.toMatchObject({ code: 'INVALID_IMAGE_LIMIT' });
-    const result = await convertToHtml(input, { images: { maxInlineBytes: 0, processLargeImage: () => ({ fileUrl: 'javascript:alert(1)' }) } });
+    await expect(convertToHtml(input, { imageHandler: { base64ImageSize: -1 } })).rejects.toMatchObject({ code: 'INVALID_IMAGE_LIMIT' });
+    const result = await convertToHtml(input, { imageHandler: { base64ImageSize: 0, processLargeImage: () => ({ fileUrl: 'javascript:alert(1)' }) } });
     expect(result.html).not.toContain('javascript:'); expect(result.warnings.map(w => w.code)).toContain('UNSAFE_IMAGE_URL');
   });
   it('reports unsupported images and supports explicit conversion adapters', async () => {
     const input = docx(p(image()), { rels: `<Relationship Id="image1" Type="${R}/image" Target="media/a.wmf"/>`, media: { 'a.wmf': new Uint8Array([1, 2, 3]) } });
     const fallback = await convertToHtml(input); expect(fallback.resources).toHaveLength(1); expect(fallback.warnings.some(w => w.code === 'UNSUPPORTED_IMAGE')).toBe(true);
-    const adapted = await convertToHtml(input, { images: { convert: async () => ({ bytes: png, mimeType: 'image/png' }) } });
+    const adapted = await convertToHtml(input, { imageHandler: { convert: async () => ({ bytes: png, mimeType: 'image/png' }) } });
     expect(adapted.html).toContain('<img'); expect(adapted.resources[0].path).toBe('word/media/a.wmf');
   });
   it('automatically converts ordinary DOCX EMF images to PNG for HTML and JSON', async () => {
@@ -200,7 +200,7 @@ describe('DOCX conversion', () => {
     expect(html.warnings).toEqual([]);
     expect(json.warnings).toEqual([]);
     const uploads: string[] = [];
-    const uploaded = await convertToHtml(input, { images: { maxInlineBytes: 0, processLargeImage: (blob, suffix, name) => {
+    const uploaded = await convertToHtml(input, { imageHandler: { base64ImageSize: 0, processLargeImage: (blob, suffix, name) => {
       uploads.push(`${blob.type}:${suffix}:${name}:${blob.size}`);
       return { fileUrl: '/uploads/shape.png' };
     } } });
@@ -257,7 +257,7 @@ describe('DOCX conversion', () => {
     const mtef = hex('03 01 01 03 00 01 02 83 78 00 02 83 2B 00 02 83 30 00 00 00');
     const body = p('<w:r><w:object><v:shape style="width:40pt;height:20pt"><v:imagedata r:id="preview"/></v:shape><o:OLEObject ProgID="Equation.3" r:id="ole"/></w:object></w:r>');
     const rels = `<Relationship Id="preview" Type="${R}/image" Target="media/a.wmf"/><Relationship Id="ole" Type="${R}/oleObject" Target="embeddings/e.bin"/>`;
-    const convert = (label: string) => convertToHtml(docx(body, { rels, media: { 'a.wmf': textWmf(label) }, extra: { 'word/embeddings/e.bin': oleEquation(mtef) } }), { images: { convert: () => ({ bytes: png, mimeType: 'image/png' }) } });
+    const convert = (label: string) => convertToHtml(docx(body, { rels, media: { 'a.wmf': textWmf(label) }, extra: { 'word/embeddings/e.bin': oleEquation(mtef) } }), { imageHandler: { convert: () => ({ bytes: png, mimeType: 'image/png' }) } });
     const matching = await convert('x+0');
     expect(elements(matching.html, 'img')[0].getAttribute('data-latex')).toBe('x+0');
     expect(matching.resources).toHaveLength(2);
@@ -282,7 +282,7 @@ describe('DOCX conversion', () => {
   it('supports cancellation before conversion and after an async image hook', async () => {
     const ctrl = new AbortController(); ctrl.abort(); await expect(convertToHtml(docx(''), { signal: ctrl.signal })).rejects.toMatchObject({ code: 'ABORTED' });
     const during = new AbortController();
-    await expect(convertToHtml(docx(p(image()), { rels: `<Relationship Id="image1" Type="${R}/image" Target="media/a.png"/>`, media: { 'a.png': png } }), { signal: during.signal, images: { resolve: async () => { during.abort(); return '/a.png'; } } })).rejects.toMatchObject({ code: 'ABORTED' });
+    await expect(convertToHtml(docx(p(image()), { rels: `<Relationship Id="image1" Type="${R}/image" Target="media/a.png"/>`, media: { 'a.png': png } }), { signal: during.signal, imageHandler: { resolve: async () => { during.abort(); return '/a.png'; } } })).rejects.toMatchObject({ code: 'ABORTED' });
   });
   it('rejects XML entities, zip traversal, missing parts, depth and actual size limits', async () => {
     const truncated = docx(p(text('short'))).slice(0, -22);

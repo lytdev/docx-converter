@@ -6,7 +6,7 @@ export class ConversionWorkerClient {
   private cancelJob?: () => void;
   cancel(): void { this.cancelJob?.(); }
 
-  convert(bytes: ArrayBuffer, title: string, onProgress: (event: ProgressEvent) => void): Promise<PlaygroundConversionResult> {
+  convert(bytes: ArrayBuffer | string, title: string, onProgress: (event: ProgressEvent) => void): Promise<PlaygroundConversionResult> {
     this.cancel();
     return new Promise((resolve, reject) => {
       const worker = new Worker(new URL('./entry.ts', import.meta.url), { type: 'module' });
@@ -29,7 +29,7 @@ export class ConversionWorkerClient {
         }
       };
       const request: ConversionRequest = { bytes, title };
-      try { worker.postMessage(request, [bytes]); }
+      try { worker.postMessage(request, typeof bytes === 'string' ? [] : [bytes]); }
       catch (error) { finish(undefined, error instanceof Error ? error : new Error(String(error))); }
     });
   }

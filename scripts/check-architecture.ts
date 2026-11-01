@@ -13,7 +13,7 @@ const layer = (path: string) => path.split('/')[1];
 /** Both runtime and type imports must respect the same boundaries. */
 export function dependencyAllowed(from: string, to: string): boolean {
   if (from.startsWith('apps/')) return to.startsWith('apps/') || ['src/index.ts', 'src/browser-metafile.ts'].includes(to);
-  if (from === 'src/index.ts') return to === 'src/application/convert-docx.ts' || layer(to) === 'contracts';
+  if (from === 'src/index.ts') return ['src/application/convert-docx.ts', 'src/application/convert-pdf.ts'].includes(to) || layer(to) === 'contracts';
   if (from === 'src/node.ts') return to === 'src/index.ts' || to.startsWith('src/adapters/node/');
   if (from === 'src/browser-metafile.ts') return to.startsWith('src/adapters/browser/');
   if (!to.startsWith('src/') || !layers.includes(layer(from)) || !layers.includes(layer(to))) return false;
@@ -21,7 +21,7 @@ export function dependencyAllowed(from: string, to: string): boolean {
   if (foundations.includes(a)) return a === b;
   if (foundations.includes(b)) return true;
   if (a === 'infrastructure') return b === 'infrastructure';
-  if (a === 'application') return ['application', 'infrastructure', 'modules', 'rendering'].includes(b);
+  if (a === 'application') return ['application', 'infrastructure', 'modules', 'rendering'].includes(b) || from === 'src/application/convert-pdf.ts' && /src\/adapters\/(browser|node)\/pdf-renderer.ts/.test(to);
   if (a === 'adapters') return b === 'application' || to.startsWith('src/modules/images/') || (b === 'adapters' && from.split('/')[2] === to.split('/')[2]);
   if (a === 'rendering') return b === 'rendering' || to.startsWith('src/modules/images/');
   if (a === 'modules') {

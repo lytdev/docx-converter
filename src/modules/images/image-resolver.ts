@@ -21,6 +21,7 @@ function uploadName(path: string, mimeType: string): { fileSuffix: string; fileN
 export class ImageResolver {
   constructor(private readonly resources: ResourceReader, private readonly context: RenderContext, private readonly options: ConversionOptions) {}
   async resolve(n: ImageNode): Promise<string | undefined> {
+    const base64ImageSize = this.options.imageHandler?.base64ImageSize ?? 2048;
     if (n.generatedSvg) {
       const png = n.generatedKind === 'drawing' && this.options.drawingOutput !== 'svg';
       let bytes: Uint8Array;
@@ -32,11 +33,11 @@ export class ImageResolver {
       }
       this.context.checkAbort();
       const mimeType = png ? 'image/png' : 'image/svg+xml', suffix = png ? 'png' : 'svg';
-      const images = this.options.images;
+      const imageHandler = this.options.imageHandler;
       let src = `data:${mimeType};base64,${base64(bytes)}`;
-      if (!images?.processLargeImage || images.maxInlineBytes === undefined || bytes.length <= images.maxInlineBytes) return src;
-      if (images?.processLargeImage && images.maxInlineBytes !== undefined && bytes.length > images.maxInlineBytes) {
-        const result = await images.processLargeImage(new Blob([new Uint8Array(bytes)], { type: mimeType }), suffix, `${n.path?.split('/').pop()?.replace(/\.xml$/, '') || 'drawing'}.${suffix}`);
+      if (!imageHandler?.processLargeImage || bytes.length <= base64ImageSize) return src;
+      if (imageHandler?.processLargeImage && bytes.length > base64ImageSize) {
+        const result = await imageHandler.processLargeImage(new Blob([new Uint8Array(bytes)], { type: mimeType }), suffix, `${n.path?.split('/').pop()?.replace(/\.xml$/, '') || 'drawing'}.${suffix}`);
         this.context.checkAbort();
         src = result?.fileUrl;
       }
@@ -49,23 +50,23 @@ export class ImageResolver {
     let bytes = original, mimeType = rasterMime(bytes);
     const context: ImageContext = { path: n.path, bytes, mimeType: this.resources.mime(n.path), alt: n.alt, formula: n.formula };
     if (!mimeType) {
-      const converted = await this.options.images?.convert?.(context)
+      const converted = await this.options.imageHandler?.convert?.(context)
         ?? (/\.emf$/i.test(n.path) ? await convertMetafileToPng(context) : undefined);
       this.context.checkAbort();
       if (converted) { bytes = converted.bytes; mimeType = rasterMime(bytes); }
     }
     if (!mimeType) { this.context.warn('UNSUPPORTED_IMAGE', `图片 ${n.path} 无法生成可显示格式；已在 resources 中保留原始文件`); return undefined; }
     let src: string | undefined;
-    const images = this.options.images;
-    if (images?.processLargeImage && images.maxInlineBytes !== undefined) {
-      if (bytes.byteLength > images.maxInlineBytes) {
+    const imageHandler = this.options.imageHandler;
+    if (imageHandler?.processLargeImage) {
+      if (bytes.byteLength > base64ImageSize) {
         const { fileSuffix, fileName } = uploadName(n.path, mimeType);
         const fileBlob = new Blob([new Uint8Array(bytes)], { type: mimeType });
-        const processed = await images.processLargeImage(fileBlob, fileSuffix, fileName);
+        const processed = await imageHandler.processLargeImage(fileBlob, fileSuffix, fileName);
         this.context.checkAbort();
         src = processed?.fileUrl;
       } else src = `data:${mimeType};base64,${base64(bytes)}`;
-    } else if (images?.resolve) src = await images.resolve({ ...context, bytes, mimeType });
+    } else if (imageHandler?.resolve) src = await imageHandler.resolve({ ...context, bytes, mimeType });
     else src = `data:${mimeType};base64,${base64(bytes)}`;
     this.context.checkAbort();
     const safe = typeof src === 'string' ? safeUrl(src, true) : undefined;

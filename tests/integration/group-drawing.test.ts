@@ -30,7 +30,7 @@ it('passes generated group SVG through the configured oversized image callback',
     expect(suffix).toBe('svg'); expect(name).toBe('drawing.svg');
     return { fileUrl: 'https://example.com/drawing.svg' };
   });
-  const result = await convertToHtml(fixture(), { drawingOutput: 'svg', images: { maxInlineBytes: 0, processLargeImage: upload } });
+  const result = await convertToHtml(fixture(), { drawingOutput: 'svg', imageHandler: { base64ImageSize: 0, processLargeImage: upload } });
   expect(upload).toHaveBeenCalledTimes(1);
   expect(result.html).toContain('src="https://example.com/drawing.svg"');
 });
@@ -65,7 +65,7 @@ it('uploads PNG bytes and uses the returned fileUrl after rasterization', async 
     expect(new Uint8Array(await blob.arrayBuffer())[0]).toBe(137);
     return { fileUrl: 'https://example.com/drawing.png' };
   });
-  const result = await convertToHtml(fixture(), { images: { maxInlineBytes: 0, processLargeImage: upload } });
+  const result = await convertToHtml(fixture(), { imageHandler: { base64ImageSize: 0, processLargeImage: upload } });
   expect(upload).toHaveBeenCalledTimes(1);
   expect(result.html).toContain('src="https://example.com/drawing.png"');
 });

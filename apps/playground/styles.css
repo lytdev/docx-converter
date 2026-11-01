@@ -3,3 +3,5 @@
 @media(max-width:1000px){.app{padding:0 22px}.workspace{grid-template-columns:245px minmax(0,1fr);gap:16px}.toolbar{padding:0 12px}.actions{gap:5px}.actions button{padding:8px}.tabs{gap:12px}.card{padding:16px}.version{display:none}}
 @media(max-width:760px){header{height:68px}.app{padding:0 16px}.intro{padding:25px 0}h1{font-size:25px}.subtitle{font-size:12px}.workspace{grid-template-columns:1fr}aside{display:grid;grid-template-columns:1fr 1fr;gap:12px}.local-note,details{grid-column:1/-1}.dropzone{min-height:130px}.preview-panel{min-height:520px}.toolbar{flex-wrap:wrap;padding:12px;gap:14px}.tabs{height:34px}.toolbar .actions{margin-left:auto}#preview-view,#source-view,iframe,textarea{min-height:460px}.privacy{font-size:10px}.brand{font-size:14px}.intro .eyebrow{font-size:9px}footer{gap:20px}}
 @media(max-width:420px){aside{display:flex}.privacy{max-width:95px}.toolbar .actions{width:100%;justify-content:flex-end}.brand{gap:7px}}
+
+.url-form{display:grid;gap:8px;margin:16px 0}.url-form input{width:100%;min-width:0;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font:inherit}

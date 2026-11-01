@@ -14,7 +14,7 @@ scope.onmessage = async ({ data }: MessageEvent<ConversionRequest>) => {
     const result = await convertToHtml(data.bytes, {
       title: data.title,
       onProgress: event => send({ type: 'progress', event }),
-      images: { convert: async image => {
+      imageHandler: { convert: async image => {
         const converted = await convertMetafileImage(image);
         if (converted) convertedImages.push({ path: `${image.path}.png`, mimeType: 'image/png', bytes: converted.bytes });
         return converted;
@@ -22,7 +22,7 @@ scope.onmessage = async ({ data }: MessageEvent<ConversionRequest>) => {
     });
     const json = await convertToJson(data.bytes, {
       title: data.title,
-      images: { convert: convertMetafileImage },
+      imageHandler: { convert: convertMetafileImage },
     });
     const transfer = [...new Set([...result.resources, ...convertedImages].map(resource => resource.bytes.buffer as ArrayBuffer))];
     send({ type: 'result', result: { ...result, json, convertedImages } }, transfer);

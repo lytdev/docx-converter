@@ -72,10 +72,10 @@ test('UMD build works through a plain script tag without bundler globals', async
   await page.addScriptTag({ path: resolve('dist/docx-html.umd.cjs') });
   const result = await page.evaluate(async () => {
     const bytes = await (await fetch('/sample.docx')).arrayBuffer();
-    const api = (window as unknown as { DocxHtml: {
+    const api = (window as unknown as { DocxConvert: {
       convertToHtml: (bytes: ArrayBuffer) => Promise<{ html: string; warnings: unknown[] }>;
       convertToJson: (bytes: ArrayBuffer) => Promise<{ document: { blocks: { kind: string }[] }; warnings: unknown[] }>;
-    } }).DocxHtml;
+    } }).DocxConvert;
     const [r, json] = await Promise.all([api.convertToHtml(bytes), api.convertToJson(bytes)]);
     return { svgImages: (r.html.match(/data:image\/svg\+xml;base64,/g) ?? []).length, hasMath: r.html.includes('<math'), warnings: r.warnings,
       jsonHasBlocks: json.document.blocks.length > 5, jsonFirst: json.document.blocks[0]?.kind, jsonWarnings: json.warnings,
@@ -90,10 +90,10 @@ test('plain browser script can offload images above the byte limit', async ({ pa
   await page.route('**/uploaded/photo.png', route => route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from(png) }));
   await page.addScriptTag({ path: resolve('dist/docx-html.umd.cjs') });
   const result = await page.evaluate(async data => {
-    const api = (window as unknown as { DocxHtml: { convertToHtml: (bytes: Uint8Array, options: unknown) => Promise<{ html: string }> } }).DocxHtml;
+    const api = (window as unknown as { DocxConvert: { convertToHtml: (bytes: Uint8Array, options: unknown) => Promise<{ html: string }> } }).DocxConvert;
     let upload: { size: number; suffix: string; name: string } | undefined;
-    const converted = await api.convertToHtml(Uint8Array.from(data), { images: {
-      maxInlineBytes: 0,
+    const converted = await api.convertToHtml(Uint8Array.from(data), { imageHandler: {
+      base64ImageSize: 0,
       processLargeImage: async (blob: Blob, suffix: string, name: string) => {
         upload = { size: blob.size, suffix, name };
         return { fileUrl: '/uploaded/photo.png', fileSize: blob.size, fileName: name };
@@ -159,7 +159,7 @@ test('rasterizes a normal EMF image and includes both PNG and original EMF in do
   expect([...resources['word/media/shape.emf.png'].subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
   await page.addScriptTag({ path: resolve('dist/docx-html.umd.cjs') });
   const umdSrc = await page.evaluate(async data => {
-    const api = (window as unknown as { DocxHtml: { convertToHtml: (bytes: Uint8Array) => Promise<{ html: string }> } }).DocxHtml;
+    const api = (window as unknown as { DocxConvert: { convertToHtml: (bytes: Uint8Array) => Promise<{ html: string }> } }).DocxConvert;
     const converted = await api.convertToHtml(Uint8Array.from(data));
     return new DOMParser().parseFromString(converted.html, 'text/html').querySelector('img')?.getAttribute('src');
   }, [...bytes]);
@@ -190,6 +190,24 @@ test('rasterizes a MathType WMF preview, attaches LaTeX and exports original res
   expect(resources['word/media/formula.wmf']).toEqual(wmf);
   expect(resources['word/embeddings/formula.bin']).toEqual(ole);
   expect([...resources['word/media/formula.wmf.png'].subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+});
+
+test('long inline formula has a small right margin without clipping', async ({ page }) => {
+  const formula = `<m:oMath>${mt('S(x)=1−F(x)=1−P(X≤x)=P(X&gt;x)')}</m:oMath>`;
+  await page.goto('/');
+  await page.locator('#file').setInputFiles({ name: 'inline.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: Buffer.from(docx(p(formula))) });
+  await expect(page.locator('#status')).toHaveText('转换完成');
+  const src = await page.frameLocator('#preview').locator('img.formula-image').getAttribute('src');
+  const svgText = Buffer.from(src!.split(',')[1], 'base64').toString('utf8');
+  const gap = await page.evaluate(xml => {
+    const svg = new DOMParser().parseFromString(xml, 'image/svg+xml').documentElement as unknown as SVGSVGElement;
+    document.body.append(svg);
+    const bounds = svg.getBBox(), view = svg.viewBox.baseVal;
+    const result = view.x + view.width - bounds.x - bounds.width;
+    svg.remove(); return result;
+  }, svgText);
+  expect(gap).toBeGreaterThanOrEqual(0);
+  expect(gap).toBeLessThan(300); // Less than 0.3em, independent of expression length.
 });
 
 test('SVG formula image keeps glyphs inside its viewport with an inherited font size', async ({ page }) => {

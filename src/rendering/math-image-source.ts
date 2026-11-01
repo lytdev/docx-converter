@@ -36,10 +36,12 @@ function padSvgViewport(svg: string): string {
     const values = box[1].trim().split(/\s+/).map(Number);
     const w = values[2], h = values[3], widthEx = Number(width[1]), heightEx = Number(height[1]);
     if (values.length !== 4 || values.some(value => !Number.isFinite(value)) || w <= 0 || h <= 0 || widthEx <= 0 || heightEx <= 0) return opening;
-    const right = w * 0.12, top = h * 0.02, bottom = h * 0.02;
+    // MathJax uses 1000 SVG units per em. Protect the final italic glyph
+    // with a small fixed allowance instead of adding 12% of the whole formula.
+    const right = 150, top = h * 0.02, bottom = h * 0.02;
     const padded = [values[0], values[1] - top, w + right, h + top + bottom].map(value => Number(value.toFixed(3))).join(' ');
     let result = opening.replace(box[0], `viewBox="${padded}"`)
-      .replace(width[0], `width="${Number((widthEx * 1.12).toFixed(3))}ex"`)
+      .replace(width[0], `width="${Number((widthEx * (w + right) / w).toFixed(3))}ex"`)
       .replace(height[0], `height="${Number((heightEx * 1.04).toFixed(3))}ex"`);
     result = result.replace(/vertical-align:\s*(-?[\d.]+)ex/, (_match, alignment: string) =>
       `vertical-align: ${Number((Number(alignment) - heightEx * 0.02).toFixed(3))}ex`);

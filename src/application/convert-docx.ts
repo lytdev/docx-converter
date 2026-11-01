@@ -21,14 +21,14 @@ export interface JsonConversionResult {
 async function parseDocx(input: DocxInput, options: ConversionOptions) {
   if (options.drawingOutput !== undefined && !['png', 'svg'].includes(options.drawingOutput))
     throw new DocxError('INVALID_DRAWING_OUTPUT', 'drawingOutput 必须为 png 或 svg');
-  const maxInlineBytes = options.images?.maxInlineBytes;
-  if (maxInlineBytes !== undefined && (!Number.isSafeInteger(maxInlineBytes) || maxInlineBytes < 0))
-    throw new DocxError('INVALID_IMAGE_LIMIT', 'maxInlineBytes 必须是非负整数（字节）');
+  const base64ImageSize = options.imageHandler?.base64ImageSize;
+  if (base64ImageSize !== undefined && (!Number.isSafeInteger(base64ImageSize) || base64ImageSize < 0))
+    throw new DocxError('INVALID_IMAGE_LIMIT', 'base64ImageSize 必须是非负整数（字节）');
   const limits = resolveLimits(options.limits);
   const session = new ConversionSession(options);
   session.checkAbort();
   session.progress({ stage: 'reading' });
-  const bytes = await readInput(input, limits.inputBytes);
+  const bytes = await readInput(input, limits.inputBytes, options.signal);
 
   session.checkAbort();
   session.progress({ stage: 'extracting' });

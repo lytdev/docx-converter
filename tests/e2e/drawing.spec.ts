@@ -16,7 +16,7 @@ test('plain browser API selects PNG or SVG for both public conversion methods', 
   await page.goto('/');
   await page.addScriptTag({ path: resolve('dist/docx-html.umd.cjs') });
   const results = await page.evaluate(async bytes => {
-    const api = (window as unknown as { DocxHtml: typeof import('../../src/index') }).DocxHtml;
+    const api = (window as unknown as { DocxConvert: typeof import('../../src/index') }).DocxConvert;
     const input = new Uint8Array(bytes);
     const result = [];
     for (const drawingOutput of ['png', 'svg'] as const) {

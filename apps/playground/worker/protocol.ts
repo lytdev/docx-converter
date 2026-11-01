@@ -5,7 +5,7 @@ export interface PlaygroundConversionResult extends ConversionResult {
   convertedImages: Resource[];
 }
 
-export interface ConversionRequest { bytes: ArrayBuffer; title: string }
+export interface ConversionRequest { bytes: ArrayBuffer | string; title: string }
 export type ConversionResponse =
   | { type: 'progress'; event: ProgressEvent }
   | { type: 'result'; result: PlaygroundConversionResult }
