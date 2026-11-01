@@ -9,6 +9,7 @@
   <button id="save" disabled>下载 HTML</button>
   <button id="save-json" disabled>下载 JSON</button>
   <button id="save-pdf" disabled>下载 PDF</button>
+  <p id="fallback" hidden></p>
   <iframe id="preview" title="文档预览" sandbox="" style="display:block;width:100%;height:75vh;border:1px solid #ddd"></iframe>
   <!-- Run npm run build first. This bundle includes ZIP/XML dependencies. -->
   <script src="../dist/docx-html.umd.cjs"></script>
@@ -31,10 +32,25 @@
       //   return { fileUrl: (await response.json()).file_url, fileSize: fileBlob.size, fileName };
       // },
     };
+    // 自动下载可能被浏览器设置、内置容器或下载插件拦截；因此始终保留一个可手动点击的链接。
+    const fallback = document.getElementById('fallback');
+    function resetFallback() { fallback.replaceChildren(); fallback.hidden = true; }
+    function saveBlob(blob, name, message) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url; link.download = name; link.textContent = `如未自动保存，点此保存 ${name}`;
+      fallback.replaceChildren(link); fallback.hidden = false;
+      const anchor = document.createElement('a');
+      anchor.href = url; anchor.download = name;
+      document.body.append(anchor); anchor.click(); anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 600000);
+      status.textContent = message;
+    }
     async function convert(file, title) {
       currentInput = file; currentTitle = title;
       document.getElementById('save-pdf').disabled = true; save.disabled = true; saveJson.disabled = true; fileInput.disabled = true;
       document.getElementById('preview').srcdoc = '';
+      resetFallback();
       status.textContent = '转换中…';
       try {
         const result = await DocxConvert.convertToHtml(file, { title: currentTitle, imageHandler, drawingOutput });
@@ -49,27 +65,24 @@
     document.getElementById('url-form').onsubmit = event => { event.preventDefault(); convert(document.getElementById('url').value.trim(), '网络文档.docx'); };
     document.getElementById('save-pdf').onclick = async () => {
       const button = document.getElementById('save-pdf'); button.disabled = true;
+      status.textContent = '正在生成 PDF…';
       try {
         const result = await DocxConvert.convertToPdf(currentInput, { title: currentTitle, imageHandler, drawingOutput });
-        const url = URL.createObjectURL(new Blob([result.bytes], { type: result.mimeType }));
-        const a = document.createElement('a'); a.href = url; a.download = currentTitle.replace(/\.docx$/i, '') + '.pdf'; a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        saveBlob(new Blob([result.bytes], { type: result.mimeType }), currentTitle.replace(/\.docx$/i, '') + '.pdf',
+          `PDF 已生成（${(result.bytes.length / 1024).toFixed(0)} KB）`);
       } catch (error) { status.textContent = error.message; }
       finally { button.disabled = false; }
     };
     save.onclick = () => {
-      const url = URL.createObjectURL(new Blob([html], {type: 'text/html;charset=utf-8'}));
-      const a = document.createElement('a'); a.href = url; a.download = 'document.html'; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      saveBlob(new Blob([html], {type: 'text/html;charset=utf-8'}), 'document.html', 'HTML 已生成');
     };
     saveJson.onclick = async () => {
       const file = currentInput; if (!file) return;
       saveJson.disabled = true;
       try {
         const result = await DocxConvert.convertToJson(file, { title: currentTitle, imageHandler, drawingOutput });
-        const url = URL.createObjectURL(new Blob([JSON.stringify(result, null, 2)], { type: 'application/json;charset=utf-8' }));
-        const a = document.createElement('a'); a.href = url; a.download = currentTitle.replace(/\.docx$/i, '') + '.json'; a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        saveBlob(new Blob([JSON.stringify(result, null, 2)], { type: 'application/json;charset=utf-8' }),
+          currentTitle.replace(/\.docx$/i, '') + '.json', 'JSON 已生成');
       } catch (error) { status.textContent = error.message; }
       finally { saveJson.disabled = false; }
     };

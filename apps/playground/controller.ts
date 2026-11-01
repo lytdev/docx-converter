@@ -19,10 +19,10 @@ export class PlaygroundController {
       file: file => { void this.convert(file); },
       sample: () => { void this.sample(); },
       cancel: () => { this.generation++; this.worker.cancel(); this.view.cancelled(); },
-      download: () => { if (this.result) downloadHtml(this.result, this.filename); },
-      json: () => { if (this.result) downloadJson(this.result, this.filename); },
+      download: () => { if (this.result) this.view.saved('HTML 已生成', downloadHtml(this.result, this.filename)); },
+      json: () => { if (this.result) this.view.saved('JSON 已生成', downloadJson(this.result, this.filename)); },
       pdf: () => { void this.makePdf(); },
-      resources: () => { if (this.result) downloadResources(this.result, this.filename); },
+      resources: () => { if (this.result) this.view.saved('资源包已生成', downloadResources(this.result, this.filename)); },
       copy: () => { void this.copy(); },
     });
   }
@@ -70,8 +70,9 @@ export class PlaygroundController {
     try {
       const pdf = await convertToPdf(input, { title: this.filename });
       if (this.pdfInput !== input) return;
-      downloadPdf(pdf.bytes, this.filename);
-      this.view.loading('PDF 已下载');
+      // 生成耗时通常超过浏览器为用户手势保留的窗口，自动下载可能被拦掉，
+      // 所以状态栏同时给出可再次点击的保存链接。
+      this.view.saved(`PDF 已生成（${Math.round(pdf.bytes.length / 1024)} KB）`, downloadPdf(pdf.bytes, this.filename));
     } catch (error) { this.view.fail(error); }
   }
   private async sample(): Promise<void> {

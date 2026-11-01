@@ -1,4 +1,5 @@
 import type { ProgressEvent } from '../../../src/index';
+import type { SavedFile } from '../downloads';
 import type { PlaygroundConversionResult } from '../worker/protocol';
 
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -112,6 +113,12 @@ export class PlaygroundView {
   }
   copied(): void {
     el('copy').textContent = '已复制'; setTimeout(() => { el('copy').textContent = '复制 HTML'; }, 1500);
+  }
+  /** 异步生成的文件在浏览器里可能被当成“自动下载”拦掉，这里补一个可再次点击的链接。 */
+  saved(message: string, file: SavedFile): void {
+    const link = document.createElement('a');
+    link.href = file.url; link.download = file.name; link.textContent = '点此保存';
+    el('status').replaceChildren(`${message} · 未自动下载请`, link, '。');
   }
   selectSource(): void {
     this.setTab('source'); this.source.focus(); this.source.select();

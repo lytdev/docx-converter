@@ -3,15 +3,19 @@ import { MathML } from '@mathjax/src/js/input/mathml.js';
 import { SVG } from '@mathjax/src/js/output/svg.js';
 import { liteAdaptor } from '@mathjax/src/js/adaptors/liteAdaptor.js';
 import { RegisterHTMLHandler } from '@mathjax/src/js/handlers/html.js';
+import { Font as StixTwoFont } from '@mathjax/mathjax-stix2-font/js/svg/default.js';
 import type { MathNode } from '../domain/document.js';
 import type { RenderContext } from '../contracts/ports.js';
 import { base64 } from '../modules/images/raster-codec.js';
 
 const adaptor = liteAdaptor();
 RegisterHTMLHandler(adaptor);
+// Word typesets OMML with Cambria Math, which MathJax cannot bundle. STIX Two
+// Math is the closest bundled serif math face, so Word formulas keep their
+// Times-like letterforms instead of the default Computer Modern look.
 const document = mathjax.document('', {
   InputJax: new MathML(),
-  OutputJax: new SVG({ fontCache: 'none' }), // Every image embeds its own glyph paths.
+  OutputJax: new SVG({ fontCache: 'none', fontData: StixTwoFont.DefaultFont }), // Every image embeds its own glyph paths.
 });
 
 function mathmlForSvg(mathml: string): string {
@@ -36,12 +40,14 @@ function padSvgViewport(svg: string): string {
     const values = box[1].trim().split(/\s+/).map(Number);
     const w = values[2], h = values[3], widthEx = Number(width[1]), heightEx = Number(height[1]);
     if (values.length !== 4 || values.some(value => !Number.isFinite(value)) || w <= 0 || h <= 0 || widthEx <= 0 || heightEx <= 0) return opening;
-    // MathJax uses 1000 SVG units per em. Protect the final italic glyph
+    // MathJax uses 1000 SVG units per em. Protect italic glyphs at both ends
     // with a small fixed allowance instead of adding 12% of the whole formula.
-    const right = 150, top = h * 0.02, bottom = h * 0.02;
-    const padded = [values[0], values[1] - top, w + right, h + top + bottom].map(value => Number(value.toFixed(3))).join(' ');
+    // Left side bearings are not part of the reported width, so a first italic
+    // glyph (STIX Two) can paint slightly outside the viewport.
+    const left = 50, right = 150, top = h * 0.02, bottom = h * 0.02;
+    const padded = [values[0] - left, values[1] - top, w + left + right, h + top + bottom].map(value => Number(value.toFixed(3))).join(' ');
     let result = opening.replace(box[0], `viewBox="${padded}"`)
-      .replace(width[0], `width="${Number((widthEx * (w + right) / w).toFixed(3))}ex"`)
+      .replace(width[0], `width="${Number((widthEx * (w + left + right) / w).toFixed(3))}ex"`)
       .replace(height[0], `height="${Number((heightEx * 1.04).toFixed(3))}ex"`);
     result = result.replace(/vertical-align:\s*(-?[\d.]+)ex/, (_match, alignment: string) =>
       `vertical-align: ${Number((Number(alignment) - heightEx * 0.02).toFixed(3))}ex`);

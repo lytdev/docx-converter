@@ -338,7 +338,7 @@ const result = await convertToHtml(file, { imageHandler: { convert: convertMetaf
 
 原有 `convertMathTypePreview` 仍可用于只处理公式预览的场景。
 
-OMML 公式在 npm 库和浏览器页面中默认输出 `<img src="data:image/svg+xml;base64,..." data-latex="...">`，可作为独立 HTML 打开。仅在确实需要语义标记时传入 `{ formulaOutput: 'mathml' }`。生成的 SVG 无需外部字体文件或 MathJax 页面脚本；`data-latex` 是结构重建结果，遇到不支持的公式结构时省略。
+OMML 公式在 npm 库和浏览器页面中默认输出 `<img src="data:image/svg+xml;base64,..." data-latex="...">`，可作为独立 HTML 打开。仅在确实需要语义标记时传入 `{ formulaOutput: 'mathml' }`。生成的 SVG 无需外部字体文件或 MathJax 页面脚本；公式字形使用 STIX Two Math（与 Word OMML 默认的 Cambria Math 同为衬线数学字体，字形接近但不完全相同；Cambria Math 是专有字体，无法随 MathJax 分发）。`data-latex` 是结构重建结果，遇到不支持的公式结构时省略。
 
 Node.js 可在安装 ImageMagick 后显式启用本地进程适配器，并指定可信的可执行文件路径：
 

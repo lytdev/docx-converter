@@ -5,3 +5,5 @@
 @media(max-width:420px){aside{display:flex}.privacy{max-width:95px}.toolbar .actions{width:100%;justify-content:flex-end}.brand{gap:7px}}
 
 .url-form{display:grid;gap:8px;margin:16px 0}.url-form input{width:100%;min-width:0;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font:inherit}
+
+.status-row a{color:var(--blue);font-weight:650;text-decoration:none;border-bottom:1px solid currentColor}
