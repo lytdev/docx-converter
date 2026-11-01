@@ -1,5 +1,5 @@
 {
-  "name": "@agile-hub/docx-html",
+  "name": "@agile-hub/docx-converter",
   "version": "0.1.0",
   "description": "TypeScript DOCX to HTML and JSON converter with fonts, tables, images and OMML math",
   "type": "module",
@@ -19,7 +19,7 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "browser": "./dist/docx-html.browser.js",
+      "browser": "./dist/docx-converter.browser.js",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
@@ -33,7 +33,7 @@
       "import": "./dist/browser-metafile.js",
       "require": "./dist/browser-metafile.cjs"
     },
-    "./browser": "./dist/docx-html.umd.cjs"
+    "./browser": "./dist/docx-converter.umd.cjs"
   },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
