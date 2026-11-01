@@ -154,6 +154,6 @@ View 在预览标签页可见时挂载新的 sandbox iframe；源码标签页下
 
 ## 验收
 
-字体与样式值、标题规则、表格结构、公式 SVG/MathML/LaTeX、资源保存通过集成测试验证。模块测试覆盖独立渲染、会话隔离和 Worker 清理；浏览器验收覆盖 Worker、预览、HTML 下载、重新打开、普通 script 调用、小屏布局和旧请求覆盖保护。现有 Java demo 仅用于本地对照检查，不纳入 npm 包。
+字体与样式值、标题规则、表格结构、公式 SVG/MathML/LaTeX、资源保存通过集成测试验证。`tests/fixtures/university-formulas.ts` 的 300 多个大学数学/物理公式会逐条转换：断言无诊断、LaTeX 可重建、SVG 结构有效；浏览器验收再检查所有图片可加载且字形不超出 viewBox。模块测试覆盖独立渲染、会话隔离和 Worker 清理；浏览器验收覆盖 Worker、预览、HTML 下载、重新打开、普通 script 调用、小屏布局和旧请求覆盖保护。现有 Java demo 仅用于本地对照检查，不纳入 npm 包。
 
 `npm run check` 运行依赖约束、四组 TypeScript 校验及 Vitest；`npm run build` 也会校验架构和类型。完整验收执行 `npm run verify`。新增功能的文件归属、检查命令与提交范围见 [贡献指南](../CONTRIBUTING.md)。

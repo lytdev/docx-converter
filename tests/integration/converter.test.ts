@@ -298,6 +298,25 @@ describe('DOCX conversion', () => {
     const style = elements(r.html, 'mstyle')[0].getAttribute('style');
     expect(style).toContain('font-family:"Cambria Math"'); expect(style).toContain('font-size:16pt'); expect(style).toContain('#CC0000');
   });
+  it('keeps literal run parentheses non-stretchy while m:d delimiters still stretch', async () => {
+    const literal = async (body: string) => convertToHtml(docx(p(`<m:oMath>${body}</m:oMath>`)), { formulaOutput: 'mathml' });
+    const parens = await literal(`<m:r><m:t>=(</m:t></m:r><m:f><m:num>${mt('a')}</m:num><m:den>${mt('b')}</m:den></m:f><m:r><m:t>)</m:t></m:r>`);
+    expect(parens.html).toContain('<mo stretchy="false">(</mo>');
+    expect(parens.html).toContain('<mo stretchy="false">)</mo>');
+    const delimited = await literal(`<m:d><m:e>${mt('x')}</m:e></m:d>`);
+    expect(delimited.html).toContain('<mo stretchy="true">(</mo>');
+    expect(delimited.html).toContain('<mo stretchy="true">)</mo>');
+  });
+  it('renders literal parentheses at normal size beside a fraction', async () => {
+    const size = '<w:rPr><w:sz w:val="28"/></w:rPr>';
+    const r = await convertToHtml(docx(p(`<m:oMath><m:r>${size}<m:t>=(</m:t></m:r><m:f><m:num>${mt('σ')}</m:num><m:den>${mt('M')}</m:den></m:f><m:r>${size}<m:t>)</m:t></m:r></m:oMath>`)));
+    const src = elements(r.html, 'img')[0].getAttribute('src')!;
+    const svg = Buffer.from(src.split(',')[1], 'base64').toString('utf8');
+    // MathJax cancels a run's font-size for letters but not for fences, which
+    // would render a normal ")" 1.4x too large next to the fraction.
+    expect(svg).toContain('data-c="28"'); expect(svg).toContain('data-c="29"');
+    expect(svg).not.toContain('scale(1.4)'); expect(svg).not.toContain('scale(0.714)');
+  });
   it('does not merge repeated stylesheet cycles infinitely', async () => {
     const styles = `<w:styles ${ns}><w:style w:styleId="a"><w:basedOn w:val="b"/></w:style><w:style w:styleId="b"><w:basedOn w:val="a"/></w:style></w:styles>`;
     const r = await convertToHtml(docx(p(text('cycle'), '<w:pStyle w:val="a"/>'), { styles })); expect(r.warnings.some(w => w.code === 'STYLE_CYCLE')).toBe(true);

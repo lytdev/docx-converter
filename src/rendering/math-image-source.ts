@@ -4,6 +4,22 @@ import { SVG } from '@mathjax/src/js/output/svg.js';
 import { liteAdaptor } from '@mathjax/src/js/adaptors/liteAdaptor.js';
 import { RegisterHTMLHandler } from '@mathjax/src/js/handlers/html.js';
 import { Font as StixTwoFont } from '@mathjax/mathjax-stix2-font/js/svg/default.js';
+// MathJax v4 keeps extended glyphs (∬, ℏ, ℕ, …, superscripts, stretchy bars)
+// in lazily loaded "dynamic" font files. Conversions here are synchronous and
+// the browser bundle has no MathJax loader, so ship the data with the bundle
+// and install it on the font instance below instead of loading it on demand.
+import '@mathjax/mathjax-stix2-font/js/svg/dynamic/accents.js';
+import '@mathjax/mathjax-stix2-font/js/svg/dynamic/accents-other.js';
+import '@mathjax/mathjax-stix2-font/js/svg/dynamic/arrows.js';
+import '@mathjax/mathjax-stix2-font/js/svg/dynamic/double-struck.js';
+import '@mathjax/mathjax-stix2-font/js/svg/dynamic/greek.js';
+import '@mathjax/mathjax-stix2-font/js/svg/dynamic/math.js';
+import '@mathjax/mathjax-stix2-font/js/svg/dynamic/shapes.js';
+import '@mathjax/mathjax-stix2-font/js/svg/dynamic/stretchy.js';
+import '@mathjax/mathjax-stix2-font/js/svg/dynamic/symbols.js';
+import '@mathjax/mathjax-stix2-font/js/svg/dynamic/symbols-other.js';
+import '@mathjax/mathjax-stix2-font/js/svg/dynamic/upright.js';
+import '@mathjax/mathjax-stix2-font/js/svg/dynamic/variants.js';
 import type { MathNode } from '../domain/document.js';
 import type { RenderContext } from '../contracts/ports.js';
 import { base64 } from '../modules/images/raster-codec.js';
@@ -13,19 +29,55 @@ RegisterHTMLHandler(adaptor);
 // Word typesets OMML with Cambria Math, which MathJax cannot bundle. STIX Two
 // Math is the closest bundled serif math face, so Word formulas keep their
 // Times-like letterforms instead of the default Computer Modern look.
-const document = mathjax.document('', {
-  InputJax: new MathML(),
-  OutputJax: new SVG({ fontCache: 'none', fontData: StixTwoFont.DefaultFont }), // Every image embeds its own glyph paths.
-});
+const outputJax = new SVG({ fontCache: 'none', fontData: StixTwoFont.DefaultFont }); // Every image embeds its own glyph paths.
+const document = mathjax.document('', { InputJax: new MathML(), OutputJax: outputJax });
 
-function mathmlForSvg(mathml: string): string {
-  // The paragraph already sizes the <img> through its inherited CSS. Passing that
-  // same size into MathJax as <math style="font-size:..."> makes the glyphs larger
-  // than MathJax's SVG viewBox and clips the right and bottom edges.
-  return mathml.replace(/^<math([^>]*)>/, (_, attributes: string) => `<math${attributes.replace(/\sstyle="([^"]*)"/, (_style, css: string) => {
+interface DynamicFontFile { file: string; setup(font: unknown): void }
+interface FontDataLike {
+  variant: Record<string, { chars: Record<string, unknown> } | undefined>;
+  delimiters: Record<string, unknown>;
+}
+// Keep in sync with the static imports above.
+const BUNDLED_DYNAMIC_FONTS = new Set(['accents', 'accents-other', 'arrows', 'double-struck', 'greek', 'math', 'shapes', 'stretchy', 'symbols', 'symbols-other', 'upright', 'variants']);
+// The dynamic modules above replace each file's setup callback with one that
+// defines its glyphs; running it now keeps the font fully synchronous.
+const dynamicFiles = (outputJax.font.constructor as unknown as { dynamicFiles: Record<string, DynamicFontFile> }).dynamicFiles;
+const fontData = outputJax.font as unknown as FontDataLike;
+const isDynamicMarker = (value: unknown, file: string): boolean =>
+  typeof value === 'object' && value !== null && (value as { file?: unknown }).file === file;
+for (const dynamic of Object.values(dynamicFiles)) {
+  if (BUNDLED_DYNAMIC_FONTS.has(dynamic.file)) {
+    dynamic.setup(outputJax.font);
+    continue;
+  }
+  // Variants that are not bundled (accented Latin, Cyrillic, fraktur, ...) should
+  // fall back to a <text> glyph instead of triggering a failed async font load.
+  for (const variant of Object.values(fontData.variant)) {
+    if (!variant) continue;
+    for (const [code, value] of Object.entries(variant.chars)) {
+      if (isDynamicMarker(value, dynamic.file)) delete variant.chars[code];
+    }
+  }
+  for (const [code, value] of Object.entries(fontData.delimiters)) {
+    if (isDynamicMarker(value, dynamic.file)) delete fontData.delimiters[code];
+  }
+}
+
+function withoutFontSize(attributes: string): string {
+  return attributes.replace(/\sstyle="([^"]*)"/, (_style, css: string) => {
     const remaining = css.split(';').filter(rule => rule && !/^font-size\s*:/.test(rule)).join(';');
     return remaining ? ` style="${remaining}"` : '';
-  })}>`);
+  });
+}
+
+function mathmlForSvg(mathml: string): string {
+  // The SVG's ex-based width/height already carries the rendered size into the
+  // <img>. Keep every glyph on the same em instead: MathJax cancels a font-size
+  // inherited from <math> or <mstyle> for ordinary tokens, but not for fence
+  // characters, so a lone ")" next to a fraction would render 1.4x too large.
+  return mathml
+    .replace(/^<math([^>]*)>/, (_, attributes: string) => `<math${withoutFontSize(attributes)}>`)
+    .replace(/<mstyle\b([^>]*)>/g, (_, attributes: string) => `<mstyle${withoutFontSize(attributes)}>`);
 }
 
 function padSvgViewport(svg: string): string {
@@ -44,7 +96,7 @@ function padSvgViewport(svg: string): string {
     // with a small fixed allowance instead of adding 12% of the whole formula.
     // Left side bearings are not part of the reported width, so a first italic
     // glyph (STIX Two) can paint slightly outside the viewport.
-    const left = 50, right = 150, top = h * 0.02, bottom = h * 0.02;
+    const left = 100, right = 150, top = h * 0.02, bottom = h * 0.02;
     const padded = [values[0] - left, values[1] - top, w + left + right, h + top + bottom].map(value => Number(value.toFixed(3))).join(' ');
     let result = opening.replace(box[0], `viewBox="${padded}"`)
       .replace(width[0], `width="${Number((widthEx * (w + left + right) / w).toFixed(3))}ex"`)

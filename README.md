@@ -338,7 +338,7 @@ const result = await convertToHtml(file, { imageHandler: { convert: convertMetaf
 
 原有 `convertMathTypePreview` 仍可用于只处理公式预览的场景。
 
-OMML 公式在 npm 库和浏览器页面中默认输出 `<img src="data:image/svg+xml;base64,..." data-latex="...">`，可作为独立 HTML 打开。仅在确实需要语义标记时传入 `{ formulaOutput: 'mathml' }`。生成的 SVG 无需外部字体文件或 MathJax 页面脚本；公式字形使用 STIX Two Math（与 Word OMML 默认的 Cambria Math 同为衬线数学字体，字形接近但不完全相同；Cambria Math 是专有字体，无法随 MathJax 分发）。`data-latex` 是结构重建结果，遇到不支持的公式结构时省略。
+OMML 公式在 npm 库和浏览器页面中默认输出 `<img src="data:image/svg+xml;base64,..." data-latex="...">`，可作为独立 HTML 打开。仅在确实需要语义标记时传入 `{ formulaOutput: 'mathml' }`。生成的 SVG 无需外部字体文件或 MathJax 页面脚本；公式字形使用 STIX Two Math（与 Word OMML 默认的 Cambria Math 同为衬线数学字体，字形接近但不完全相同；Cambria Math 是专有字体，无法随 MathJax 分发）。MathJax 的动态字体数据（积分号、双线字母、拉伸括号等扩展字形）会随构建产物一起打包，因此包体积比只含基础字形时大约多 1 MB。`data-latex` 是结构重建结果，遇到不支持的公式结构时省略。
 
 Node.js 可在安装 ImageMagick 后显式启用本地进程适配器，并指定可信的可执行文件路径：
 
@@ -384,7 +384,7 @@ const result = await convertToHtmlFile('demo.docx', {
 ## 开发与验证
 
 - `src/` 按 contracts、domain、application、infrastructure、modules、rendering、adapters 分层；`apps/playground/` 放浏览器应用。
-- `tests/fixtures/docx.ts`、`emf.ts`、`ole.ts` 和 `wmf.ts` 提供最小测试数据；`tests/integration/` 覆盖字体继承、表格合并、嵌套表格、图片、公式、资源限制等行为；`tests/unit/` 覆盖 OLE/MTEF、模块隔离及 Worker 生命周期。
+- `tests/fixtures/docx.ts`、`emf.ts`、`ole.ts` 和 `wmf.ts` 提供最小测试数据；`tests/fixtures/university-formulas.ts` 收录 300 多个大学数学/物理常用公式的 OMML 语料；`tests/integration/` 覆盖字体继承、表格合并、嵌套表格、图片、公式、资源限制等行为；`tests/unit/` 覆盖 OLE/MTEF、模块隔离及 Worker 生命周期。公式语料由 `formula-corpus.test.ts` 逐一校验诊断、SVG 结构和 LaTeX 重建，浏览器验收再检查每张图片可加载且字形不超出 viewBox。
 - `public/sample.docx` 是人工构造的可分发示例，不包含 Java 参考项目中的真实文档内容。
 - `node scripts/generate-sample.ts` 可在 Node 24 下重新生成示例。
 - `tests/e2e/` 为浏览器与下载验收，构建后运行 `npm run test:e2e`；首次运行需要安装 Playwright Chromium，或设置 `DOCX_TEST_BROWSER` 为本地 Chrome/Edge 的绝对路径。

@@ -3,6 +3,7 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { unzipSync } from 'fflate';
 import { docx, p, mt, ns, R, image, png } from '../fixtures/docx';
+import { universityFormulas } from '../fixtures/university-formulas';
 import { textWmf } from '../fixtures/wmf';
 import { emf } from '../fixtures/emf';
 import { hex, oleEquation } from '../fixtures/ole';
@@ -227,4 +228,48 @@ test('SVG formula image keeps glyphs inside its viewport with an inherited font 
     return bounds.x < view.x - 1 || bounds.y < view.y - 1 || bounds.x + bounds.width > view.x + view.width + 1 || bounds.y + bounds.height > view.y + view.height + 1;
   }, svgText);
   expect(clipped).toBe(false);
+});
+
+test('renders the 300+ formula corpus without load or clipping failures', async ({ page }) => {
+  const body = universityFormulas.map(formula => p(`<m:oMath>${formula.omml}</m:oMath>`)).join('');
+  await page.goto('/');
+  await page.locator('#file').setInputFiles({ name: 'formula-corpus.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: Buffer.from(docx(body)) });
+  await expect(page.locator('#status')).toHaveText('转换完成', { timeout: 120_000 });
+  await expect(page.locator('#warning-count')).toHaveText('0');
+  const frame = page.frameLocator('#preview');
+  await expect(frame.locator('img.formula-image')).toHaveCount(universityFormulas.length, { timeout: 120_000 });
+
+  const failures = await frame.locator('img.formula-image').evaluateAll((images: HTMLImageElement[]) => {
+    const problems: string[] = [];
+    images.forEach((image, index) => {
+      if (!image.complete || image.naturalWidth === 0) { problems.push(`#${index} did not load`); return; }
+      try {
+        const bytes = Uint8Array.from(atob(image.src.split(',')[1]), char => char.charCodeAt(0));
+        const svg = new DOMParser().parseFromString(new TextDecoder().decode(bytes), 'image/svg+xml').documentElement as unknown as SVGSVGElement;
+        // MathJax nests an <svg> viewport inside stretched delimiters. Its
+        // getBBox reports the unclipped glyph, so measure the viewport box
+        // instead of the inner content.
+        const clone = svg.cloneNode(true) as SVGSVGElement;
+        for (const nested of Array.from(clone.querySelectorAll('svg svg'))) {
+          const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          for (const name of ['x', 'y', 'width', 'height']) if (nested.hasAttribute(name)) rect.setAttribute(name, nested.getAttribute(name)!);
+          nested.replaceWith(rect);
+        }
+        document.body.append(clone);
+        const bounds = clone.getBBox(), view = svg.viewBox.baseVal;
+        clone.remove();
+        const overflow = {
+          left: +(view.x - bounds.x).toFixed(1), top: +(view.y - bounds.y).toFixed(1),
+          right: +(bounds.x + bounds.width - (view.x + view.width)).toFixed(1), bottom: +(bounds.y + bounds.height - (view.y + view.height)).toFixed(1),
+        };
+        if (Math.max(overflow.left, overflow.top, overflow.right, overflow.bottom) > 1) {
+          problems.push(`#${index} «${image.alt.slice(0, 60)}» glyphs outside viewBox: ${JSON.stringify(overflow)}`);
+        }
+      } catch (error) {
+        problems.push(`#${index} «${image.alt.slice(0, 60)}» ${String(error)}`);
+      }
+    });
+    return problems;
+  });
+  expect(failures).toEqual([]);
 });

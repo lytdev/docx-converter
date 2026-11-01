@@ -36,7 +36,11 @@ export function convertMath(root: X, diagnostics: DiagnosticSink, display = fals
       const wrap = (s: string) => css ? `<mstyle style="${esc(css)}">${s}</mstyle>` : s;
       if (normal) return { ml: wrap(`<mtext mathvariant="${variant}">${esc(text)}</mtext>`), tex: `\\text{${texText(text)}}` };
       const tokens = text.match(/\d+(?:\.\d+)?|[\p{L}\p{M}]+|\s+|./gu) ?? [];
-      return { ml: wrap(tokens.map(t => /^\s+$/.test(t) ? `<mspace width="${t.length * 0.25}em"/>` : /^\d/.test(t) ? `<mn>${esc(t)}</mn>` : /^[\p{L}\p{M}]/u.test(t) ? `<mi mathvariant="${variant}">${esc(t)}</mi>` : `<mo>${esc(t)}</mo>`).join('')), tex: bold ? `\\mathbf{${latex(text)}}` : latex(text) };
+      // Parentheses and bars typed as plain OMML runs must keep their normal
+      // glyph size: MathML operators are stretchy by default, which would blow
+      // a literal ")" up to the height of an adjacent fraction. Word only
+      // auto-sizes delimiters built as m:d structures, handled separately below.
+      return { ml: wrap(tokens.map(t => /^\s+$/.test(t) ? `<mspace width="${t.length * 0.25}em"/>` : /^\d/.test(t) ? `<mn>${esc(t)}</mn>` : /^[\p{L}\p{M}]/u.test(t) ? `<mi mathvariant="${variant}">${esc(t)}</mi>` : `<mo stretchy="false">${esc(t)}</mo>`).join('')), tex: bold ? `\\mathbf{${latex(text)}}` : latex(text) };
     }
     if (tag === 'f') {
       const a = arg(e, 'num'), b = arg(e, 'den'), type = mv(c(c(e, 'fPr'), 'type'));
