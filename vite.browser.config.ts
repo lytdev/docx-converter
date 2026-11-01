@@ -10,6 +10,6 @@ export default defineConfig({
     { find: /^#default-font\//, replacement: '@mathjax/mathjax-stix2-font/js/' },
   ] },
   build: { outDir: 'dist', emptyOutDir: false,
-    lib: { entry: 'src/index.ts', name: 'DocxConvert', formats: ['es', 'umd'], fileName: format => format === 'es' ? 'docx-html.browser.js' : 'docx-html.umd.cjs' },
+    lib: { entry: 'src/index.ts', name: 'DocxConverter', formats: ['es', 'umd'], fileName: format => format === 'es' ? 'docx-converter.browser.js' : 'docx-converter.umd.cjs' },
   },
 });

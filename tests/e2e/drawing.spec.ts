@@ -14,9 +14,9 @@ test('Worker defaults grouped drawings to a decoded high-resolution PNG', async 
 
 test('plain browser API selects PNG or SVG for both public conversion methods', async ({ page }) => {
   await page.goto('/');
-  await page.addScriptTag({ path: resolve('dist/docx-html.umd.cjs') });
+  await page.addScriptTag({ path: resolve('dist/docx-converter.umd.cjs') });
   const results = await page.evaluate(async bytes => {
-    const api = (window as unknown as { DocxConvert: typeof import('../../src/index') }).DocxConvert;
+    const api = (window as unknown as { DocxConverter: typeof import('../../src/index') }).DocxConverter;
     const input = new Uint8Array(bytes);
     const result = [];
     for (const drawingOutput of ['png', 'svg'] as const) {

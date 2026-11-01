@@ -12,7 +12,7 @@
   <p id="fallback" hidden></p>
   <iframe id="preview" title="文档预览" sandbox="" style="display:block;width:100%;height:75vh;border:1px solid #ddd"></iframe>
   <!-- Run npm run build first. This bundle includes ZIP/XML dependencies. -->
-  <script src="../dist/docx-html.umd.cjs"></script>
+  <script src="../dist/docx-converter.umd.cjs"></script>
   <script>
     const fileInput = document.getElementById('file');
     const status = document.getElementById('status');
@@ -53,7 +53,7 @@
       resetFallback();
       status.textContent = '转换中…';
       try {
-        const result = await DocxConvert.convertToHtml(file, { title: currentTitle, imageHandler, drawingOutput });
+        const result = await DocxConverter.convertToHtml(file, { title: currentTitle, imageHandler, drawingOutput });
         html = result.html;
         document.getElementById('preview').srcdoc = html;
         status.textContent = `完成，${result.warnings.length} 条提示：` + result.warnings.map(w => w.message).join('；');
@@ -67,7 +67,7 @@
       const button = document.getElementById('save-pdf'); button.disabled = true;
       status.textContent = '正在生成 PDF…';
       try {
-        const result = await DocxConvert.convertToPdf(currentInput, { title: currentTitle, imageHandler, drawingOutput });
+        const result = await DocxConverter.convertToPdf(currentInput, { title: currentTitle, imageHandler, drawingOutput });
         saveBlob(new Blob([result.bytes], { type: result.mimeType }), currentTitle.replace(/\.docx$/i, '') + '.pdf',
           `PDF 已生成（${(result.bytes.length / 1024).toFixed(0)} KB）`);
       } catch (error) { status.textContent = error.message; }
@@ -80,7 +80,7 @@
       const file = currentInput; if (!file) return;
       saveJson.disabled = true;
       try {
-        const result = await DocxConvert.convertToJson(file, { title: currentTitle, imageHandler, drawingOutput });
+        const result = await DocxConverter.convertToJson(file, { title: currentTitle, imageHandler, drawingOutput });
         saveBlob(new Blob([JSON.stringify(result, null, 2)], { type: 'application/json;charset=utf-8' }),
           currentTitle.replace(/\.docx$/i, '') + '.json', 'JSON 已生成');
       } catch (error) { status.textContent = error.message; }

@@ -1,5 +1,5 @@
 import { writeFile } from 'node:fs/promises';
-import { convertToHtmlFile, convertToJsonFile, createImageMagickPreviewConverter } from '@agile-hub/docx-html/node';
+import { convertToHtmlFile, convertToJsonFile, createImageMagickPreviewConverter } from '@agile-hub/docx-converter/node';
 
 const input = process.argv[2];
 if (!input) throw new Error('Usage: node examples/node.mjs input.docx [output.html|output.json]');

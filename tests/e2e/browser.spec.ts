@@ -70,13 +70,13 @@ test('small-screen layout stays within viewport', async ({ page }) => {
 
 test('UMD build works through a plain script tag without bundler globals', async ({ page }) => {
   await page.goto('/');
-  await page.addScriptTag({ path: resolve('dist/docx-html.umd.cjs') });
+  await page.addScriptTag({ path: resolve('dist/docx-converter.umd.cjs') });
   const result = await page.evaluate(async () => {
     const bytes = await (await fetch('/sample.docx')).arrayBuffer();
-    const api = (window as unknown as { DocxConvert: {
+    const api = (window as unknown as { DocxConverter: {
       convertToHtml: (bytes: ArrayBuffer) => Promise<{ html: string; warnings: unknown[] }>;
       convertToJson: (bytes: ArrayBuffer) => Promise<{ document: { blocks: { kind: string }[] }; warnings: unknown[] }>;
-    } }).DocxConvert;
+    } }).DocxConverter;
     const [r, json] = await Promise.all([api.convertToHtml(bytes), api.convertToJson(bytes)]);
     return { svgImages: (r.html.match(/data:image\/svg\+xml;base64,/g) ?? []).length, hasMath: r.html.includes('<math'), warnings: r.warnings,
       jsonHasBlocks: json.document.blocks.length > 5, jsonFirst: json.document.blocks[0]?.kind, jsonWarnings: json.warnings,
@@ -89,9 +89,9 @@ test('plain browser script can offload images above the byte limit', async ({ pa
   const bytes = docx(p(image()), { rels: `<Relationship Id="image1" Type="${R}/image" Target="media/photo.png"/>`, media: { 'photo.png': png } });
   await page.goto('/');
   await page.route('**/uploaded/photo.png', route => route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from(png) }));
-  await page.addScriptTag({ path: resolve('dist/docx-html.umd.cjs') });
+  await page.addScriptTag({ path: resolve('dist/docx-converter.umd.cjs') });
   const result = await page.evaluate(async data => {
-    const api = (window as unknown as { DocxConvert: { convertToHtml: (bytes: Uint8Array, options: unknown) => Promise<{ html: string }> } }).DocxConvert;
+    const api = (window as unknown as { DocxConverter: { convertToHtml: (bytes: Uint8Array, options: unknown) => Promise<{ html: string }> } }).DocxConverter;
     let upload: { size: number; suffix: string; name: string } | undefined;
     const converted = await api.convertToHtml(Uint8Array.from(data), { imageHandler: {
       base64ImageSize: 0,
@@ -158,9 +158,9 @@ test('rasterizes a normal EMF image and includes both PNG and original EMF in do
   const resources = unzipSync(new Uint8Array(await readFile(zipPath)));
   expect(resources['word/media/shape.emf']).toEqual(emf);
   expect([...resources['word/media/shape.emf.png'].subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
-  await page.addScriptTag({ path: resolve('dist/docx-html.umd.cjs') });
+  await page.addScriptTag({ path: resolve('dist/docx-converter.umd.cjs') });
   const umdSrc = await page.evaluate(async data => {
-    const api = (window as unknown as { DocxConvert: { convertToHtml: (bytes: Uint8Array) => Promise<{ html: string }> } }).DocxConvert;
+    const api = (window as unknown as { DocxConverter: { convertToHtml: (bytes: Uint8Array) => Promise<{ html: string }> } }).DocxConverter;
     const converted = await api.convertToHtml(Uint8Array.from(data));
     return new DOMParser().parseFromString(converted.html, 'text/html').querySelector('img')?.getAttribute('src');
   }, [...bytes]);

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Single npm package `@agile-hub/docx-html`: a TypeScript + Vite DOCX → HTML / JSON / PDF converter. No Mammoth, Java, Word, server, or online formula service is used at runtime. `apps/playground` is the demo application in the same package, not a second package.
+Single npm package `@agile-hub/docx-converter`: a TypeScript + Vite DOCX → HTML / JSON / PDF converter. No Mammoth, Java, Word, server, or online formula service is used at runtime. `apps/playground` is the demo application in the same package, not a second package.
 
 Three public entry points, each with a narrow responsibility:
 

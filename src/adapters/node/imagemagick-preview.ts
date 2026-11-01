@@ -12,7 +12,7 @@ export function createImageMagickPreviewConverter(executable = 'magick') {
   return async (image: ImageContext): Promise<ImageResult | undefined> => {
     if (!image.formula || !/\.(wmf|emf)$/i.test(image.path) || image.bytes.length > 8 * 1024 * 1024) return;
     const extension = image.path.toLowerCase().endsWith('.emf') ? 'emf' : 'wmf';
-    const directory = await mkdtemp(join(tmpdir(), 'docx-html-preview-'));
+    const directory = await mkdtemp(join(tmpdir(), 'docx-converter-preview-'));
     const input = join(directory, `preview.${extension}`), output = join(directory, 'preview.png');
     try {
       await writeFile(input, image.bytes);
