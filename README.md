@@ -1,19 +1,22 @@
 # DOCX → HTML / JSON / PDF 转换器
 
+[![npm version](https://img.shields.io/npm/v/@agile-hub/docx-converter.svg)](https://www.npmjs.com/package/@agile-hub/docx-converter)
+[![npm license](https://img.shields.io/npm/l/@agile-hub/docx-converter.svg)](https://www.npmjs.com/package/@agile-hub/docx-converter)
+
 一个用 **TypeScript + Vite** 实现的 DOCX 转换库，可以在浏览器或 Node.js 中把 Word 文档（`.docx`）转换成：
 
 - **HTML**：保留字体、颜色、表格、图片和公式，可直接预览或部署；
 - **JSON**：结构化的段落、表格、图片、公式节点，方便二次处理；
 - **PDF**：浏览器或 Node.js 中导出 PDF 文件。
 
-转换全部在本机执行，**不依赖 Java、Word、后端服务或在线公式服务**，也不使用 Mammoth 作为底层引擎，因此可以自行保留字体、表格边框和公式结构。
+转换全部在本机执行，**不依赖 Word、后端服务或在线公式服务**，可以自行保留字体、表格边框和公式结构。
 
-> 第一次使用建议按顺序阅读：**① 运行演示 → ② 选择调用方式 → ③ 复制最小示例 → ④ 按需查参数**。
+> 第一次使用建议按顺序阅读：**① 安装 → ② 选择调用方式 → ③ 复制最小示例 → ④ 按需查参数**；想先看效果可以直接运行演示。
 
 ## 目录
 
-- [运行演示（最快看到效果）](#运行演示最快看到效果)
 - [安装](#安装)
+- [运行演示（快速体验）](#运行演示快速体验)
 - [四种调用方式](#四种调用方式)
 - [输出结果说明](#输出结果说明)
 - [输入类型](#输入类型)
@@ -25,48 +28,31 @@
 - [常见问题](#常见问题)
 - [开发与验证](#开发与验证)
 
-## 运行演示（最快看到效果）
-
-环境要求：Node.js **22.12+**（推荐 Node 24）和 npm。
-
-```sh
-npm ci
-npm run dev
-```
-
-打开终端提示的地址（默认 `http://127.0.0.1:5173`），选择或拖入一个 `.docx` 文件，或点击“试用示例文档”。演示页支持预览、查看 HTML 源码、复制内容、下载 HTML / JSON / PDF 和资源 ZIP，并支持取消与 60 秒超时终止。
-
-如果想看构建后的生产版本：
-
-```sh
-npm run build
-npm run preview
-```
-
-`npm run preview` 会启动 `dist-demo` 中的完整浏览器应用。
-
 ## 安装
 
-### 作为项目依赖安装
-
-> 包名暂定为 `@agile-hub/docx-converter`，**尚未发布到 npm**。发布后可以直接 `npm install @agile-hub/docx-converter`；在此之前请用本地 tarball 安装。
-
 ```sh
-# 在本仓库中打包（prepack 会自动执行完整构建）
-npm pack
+npm install @agile-hub/docx-converter
 ```
 
-然后在你的项目中安装生成的包：
+也可以使用 `pnpm add @agile-hub/docx-converter` 或 `yarn add @agile-hub/docx-converter`。包内自带 TypeScript 类型声明，同时提供 ESM、CommonJS 和 UMD 构建；Vite、Vue、React、Next.js 或其他 TypeScript / JavaScript 项目都可以直接使用，不绑定 UI 框架。
+
+Node.js 环境要求 **22.12+**；浏览器端无需额外系统环境，公式字体和图片转换依赖会随 npm 依赖一并安装。
+
+### 从本地 tarball 安装
+
+需要试用仓库中尚未发布的改动时，可以打包后安装：
 
 ```sh
+# 在本仓库中执行，prepack 会自动完成构建
+npm pack
+
+# 在目标项目中安装
 npm install /absolute/path/agile-hub-docx-converter-0.1.0.tgz
 ```
 
-Vite、Vue、React、Next.js 或其他 TypeScript / JavaScript 项目都可以使用，不绑定 UI 框架。
-
 ### 普通 script 标签
 
-需要先在本仓库执行 `npm run build`，然后把 `dist/docx-converter.umd.cjs` 复制到网站的静态资源目录。若服务器不识别 `.cjs` 的 MIME 类型，可以将其重命名为 `docx-converter.js` 后再引用。
+npm 安装包和本仓库的构建产物中都包含 `dist/docx-converter.umd.cjs`（UMD，依赖已内联）。从 npm 安装时文件位于 `node_modules/@agile-hub/docx-converter/dist/docx-converter.umd.cjs`；把它复制到网站的静态资源目录即可引用。`.cjs` 的 MIME 类型可能不被浏览器识别，建议重命名为 `docx-converter.js` 后再使用。
 
 ```html
 <input id="file" type="file" accept=".docx">
@@ -89,6 +75,26 @@ Vite、Vue、React、Next.js 或其他 TypeScript / JavaScript 项目都可以�
 ```
 
 UMD 版本会暴露全局对象 `window.DocxConverter`，可直接调用 `convertToHtml`、`convertToJson`、`convertToPdf`。
+
+## 运行演示（快速体验）
+
+环境要求：Node.js **22.12+**（推荐 Node 24）和 npm。
+
+```sh
+npm ci
+npm run dev
+```
+
+打开终端提示的地址（默认 `http://127.0.0.1:5173`），选择或拖入一个 `.docx` 文件，或点击“试用示例文档”。演示页支持预览、查看 HTML 源码、复制内容、下载 HTML / JSON / PDF 和资源 ZIP，并支持取消与 60 秒超时终止。
+
+如果想看构建后的生产版本：
+
+```sh
+npm run build
+npm run preview
+```
+
+`npm run preview` 会启动 `dist-demo` 中的完整浏览器应用。
 
 ## 四种调用方式
 
@@ -524,7 +530,7 @@ try {
 ## 常见问题
 
 **安装 `@agile-hub/docx-converter` 失败？**
-该包尚未发布到 npm。请先在仓库中执行 `npm pack`，再用生成的 `.tgz` 安装。
+请确认包名拼写正确，并执行 `npm install @agile-hub/docx-converter`。如果所用镜像源尚未同步最新版本，可改用官方源安装（`npm install @agile-hub/docx-converter --registry=https://registry.npmjs.org`），或在本仓库执行 `npm pack` 后用生成的 `.tgz` 安装。
 
 **导出的 HTML 中中文或公式与 Word 不完全一致？**
 库不嵌入字体文件，显示效果取决于运行环境已安装的字体。公式默认使用 STIX Two Math，字形接近 Word 的 Cambria Math，但不完全相同。
