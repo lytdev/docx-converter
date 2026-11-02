@@ -1,8 +1,9 @@
 {
   "name": "@agile-hub/docx-converter",
   "version": "0.1.0",
-  "description": "TypeScript DOCX to HTML and JSON converter with fonts, tables, images and OMML math",
+  "description": "TypeScript DOCX to HTML JSON And Pdf converter with fonts, tables, images and OMML math",
   "type": "module",
+  "author": "lytdev <lytdev@outlook.com>",
   "files": [
     "dist",
     "docs/architecture.md",
@@ -10,6 +11,13 @@
     "CONTRIBUTING.md",
     "LICENSE"
   ],
+   "repository": {
+    "type": "git",
+    "url": "https://github.com/lytdev/latex-formula.git"
+  },
+   "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",

@@ -129,7 +129,7 @@ View 在预览标签页可见时挂载新的 sandbox iframe；源码标签页下
 
 | Java 概念 | TypeScript 实现 |
 | --- | --- |
-| DocxConverterer / ConversionConfig | convertToHtml / ConversionOptions |
+| DocxConverter / ConversionConfig | convertToHtml / ConversionOptions |
 | DocxExtractor / ExtractedDocx | 内存 DocxPackage，无临时解压目录 |
 | StylesParser / ThemeParser | Styles |
 | NumberingParser | Numbering，读取各级编号 |
