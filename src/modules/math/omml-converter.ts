@@ -63,7 +63,10 @@ export function convertMath(root: X, diagnostics: DiagnosticSink, display = fals
       const a = arg(e, 'e'), sub = arg(e, 'sub'), sup = arg(e, 'sup');
       const showSub = !['1', 'true', 'on'].includes(mv(c(pr, 'subHide')) ?? '') && !!sub.ml;
       const showSup = !['1', 'true', 'on'].includes(mv(c(pr, 'supHide')) ?? '') && !!sup.ml;
-      const side = mv(c(pr, 'limLoc')) === 'subSup';
+      // Word always lays n-ary limits out to the right in inline equations,
+      // even when m:limLoc says undOvr; only display equations (m:oMathPara)
+      // stack them above and below.
+      const side = !display || mv(c(pr, 'limLoc')) === 'subSup';
       const wrap = showSub && showSup ? side ? 'msubsup' : 'munderover' : showSub ? side ? 'msub' : 'munder' : showSup ? side ? 'msup' : 'mover' : '';
       const operator = `<mo largeop="true" movablelimits="false">${esc(op)}</mo>`;
       return { ml: `<mrow>${wrap ? `<${wrap}>` : ''}${operator}${showSub ? row(sub) : ''}${showSup ? row(sup) : ''}${wrap ? `</${wrap}>` : ''}${a.ml}</mrow>`, tex: `${latex(op)}${showSub ? `_{${sub.tex}}` : ''}${showSup ? `^{${sup.tex}}` : ''}{${a.tex}}` };

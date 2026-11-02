@@ -54,7 +54,21 @@ function inspectSvg(src: string): string[] {
 
 async function inspectFormula(formula: FormulaCase): Promise<string[]> {
   const errors: string[] = [];
-  const result = await convertToJson(docx(p(mathParagraph(formula))));
+  for (const layout of ['inline', 'display'] as const) {
+    const label = layout === 'display' ? '独立公式' : '行内公式';
+    try {
+      errors.push(...(await inspectLayout(formula, layout)).map(error => `${label}: ${error}`));
+    } catch (error) {
+      errors.push(`${label}: threw ${String(error)}`);
+    }
+  }
+  return errors;
+}
+
+async function inspectLayout(formula: FormulaCase, layout: 'inline' | 'display'): Promise<string[]> {
+  const errors: string[] = [];
+  const display = layout === 'display';
+  const result = await convertToJson(docx(p(mathParagraph(formula, layout))));
   for (const warning of result.warnings) errors.push(`${warning.code}: ${warning.message}`);
   if (result.stats.formulas !== 1) errors.push(`stats.formulas=${result.stats.formulas}`);
 
@@ -63,9 +77,17 @@ async function inspectFormula(formula: FormulaCase): Promise<string[]> {
   if (nodes.length !== 1) return [...errors, `expected one math node, found ${nodes.length}`];
 
   const node = nodes[0];
+  if (node.display !== display) errors.push(`node.display=${node.display}`);
   if (!node.latex) errors.push('missing reconstructed LaTeX');
   if (!node.src) errors.push('missing SVG src');
   else errors.push(...inspectSvg(node.src));
+
+  // Word stacks n-ary limits only in display equations; inline equations always
+  // keep them on the right, regardless of m:limLoc="undOvr".
+  const wantsStacked = display && /m:limLoc\s+m:val="undOvr"/.test(formula.omml);
+  const stacked = node.mathml.includes('<munderover>');
+  if (wantsStacked && !stacked) errors.push('display equation did not stack undOvr n-ary limits');
+  if (!wantsStacked && stacked) errors.push(`${layout} equation stacked n-ary limits`);
   return errors;
 }
 
@@ -89,7 +111,7 @@ describe('university formula corpus', () => {
   });
 
   describe.each(formulaCategories)('$category', ({ formulas }) => {
-    it(`converts all ${formulas.length} formulas to valid SVG images`, async () => {
+    it(`converts all ${formulas.length} formulas as inline and display equations`, async () => {
       const failures: string[] = [];
       for (const formula of formulas) {
         try {

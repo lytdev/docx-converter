@@ -3,7 +3,7 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { unzipSync } from 'fflate';
 import { docx, p, mt, ns, R, image, png } from '../fixtures/docx';
-import { universityFormulas } from '../fixtures/university-formulas';
+import { mathParagraph, universityFormulas } from '../fixtures/university-formulas';
 import { textWmf } from '../fixtures/wmf';
 import { emf } from '../fixtures/emf';
 import { hex, oleEquation } from '../fixtures/ole';
@@ -230,14 +230,14 @@ test('SVG formula image keeps glyphs inside its viewport with an inherited font 
   expect(clipped).toBe(false);
 });
 
-test('renders the 300+ formula corpus without load or clipping failures', async ({ page }) => {
-  const body = universityFormulas.map(formula => p(`<m:oMath>${formula.omml}</m:oMath>`)).join('');
+test('renders the 300+ formula corpus inline and as display equations without load or clipping failures', async ({ page }) => {
+  const body = universityFormulas.map(formula => p(mathParagraph(formula, 'inline')) + p(mathParagraph(formula, 'display'))).join('');
   await page.goto('/');
   await page.locator('#file').setInputFiles({ name: 'formula-corpus.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: Buffer.from(docx(body)) });
   await expect(page.locator('#status')).toHaveText('转换完成', { timeout: 120_000 });
   await expect(page.locator('#warning-count')).toHaveText('0');
   const frame = page.frameLocator('#preview');
-  await expect(frame.locator('img.formula-image')).toHaveCount(universityFormulas.length, { timeout: 120_000 });
+  await expect(frame.locator('img.formula-image')).toHaveCount(universityFormulas.length * 2, { timeout: 120_000 });
 
   const failures = await frame.locator('img.formula-image').evaluateAll((images: HTMLImageElement[]) => {
     const problems: string[] = [];

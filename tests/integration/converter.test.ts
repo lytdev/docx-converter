@@ -242,7 +242,16 @@ describe('DOCX conversion', () => {
   });
   it('preserves hidden n-ary limits and direct roman math style', async () => {
     const r = await convertToHtml(docx(p(`<m:oMath><m:nary><m:naryPr><m:chr m:val="∑"/><m:subHide m:val="1"/></m:naryPr><m:sub>${mt('i')}</m:sub><m:sup>${mt('n')}</m:sup><m:e><m:r><m:rPr><m:sty m:val="p"/></m:rPr><m:t>real</m:t></m:r></m:e></m:nary></m:oMath>`)), { formulaOutput: 'mathml' });
-    expect(elements(r.html, 'mover')).toHaveLength(1); expect(elements(r.html, 'munderover')).toHaveLength(0); expect(r.html).toContain('mathvariant="normal">real');
+    expect(elements(r.html, 'msup')).toHaveLength(1); expect(elements(r.html, 'munderover')).toHaveLength(0); expect(r.html).toContain('mathvariant="normal">real');
+  });
+  it('keeps inline n-ary limits on the right and display ones above and below', async () => {
+    const nary = `<m:nary><m:naryPr><m:chr m:val="∑"/><m:limLoc m:val="undOvr"/></m:naryPr><m:sub>${mt('s=t')}</m:sub><m:sup>${mt('R')}</m:sup><m:e>${mt('x')}</m:e></m:nary>`;
+    const inline = await convertToHtml(docx(p(`<m:oMath>${nary}</m:oMath>`)), { formulaOutput: 'mathml' });
+    expect(elements(inline.html, 'msubsup')).toHaveLength(1);
+    expect(elements(inline.html, 'munderover')).toHaveLength(0);
+    const display = await convertToHtml(docx(p(`<m:oMathPara><m:oMath>${nary}</m:oMath></m:oMathPara>`)), { formulaOutput: 'mathml' });
+    expect(elements(display.html, 'munderover')).toHaveLength(1);
+    expect(elements(display.html, 'msubsup')).toHaveLength(0);
   });
   it('warns on unsupported math instead of attaching inaccurate LaTeX', async () => {
     const r = await convertToHtml(docx(p(`<m:oMath><m:phant><m:e>${mt('x')}</m:e></m:phant></m:oMath>`)));

@@ -450,4 +450,6 @@ export const formulaCategories: { category: string; formulas: FormulaCase[] }[] 
 export const universityFormulas: FormulaCase[] = formulaCategories.flatMap(group => group.formulas);
 
 /** Every formula is wrapped in a Word math paragraph by the tests. */
-export const mathParagraph = (formula: FormulaCase): string => `<m:oMath>${formula.omml}</m:oMath>`;
+export type MathLayout = 'inline' | 'display';
+export const mathParagraph = (formula: FormulaCase, layout: MathLayout = 'inline'): string =>
+  layout === 'display' ? `<m:oMathPara><m:oMath>${formula.omml}</m:oMath></m:oMathPara>` : `<m:oMath>${formula.omml}</m:oMath>`;
