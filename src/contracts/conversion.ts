@@ -17,9 +17,14 @@ export interface ConversionLimits {
 }
 export interface ConversionOptions {
   output?: 'document' | 'fragment';
-  /** Default image: embed self-contained SVG for OMML; mathml keeps the prior semantic markup. */
+  /** OMML equations render as images by default; mathml keeps semantic markup instead. */
   formulaOutput?: 'image' | 'mathml';
-  /** Word grouped drawings: PNG (default, 3x display resolution) or SVG. */
+  /**
+   * Format for generated formula and chart images.
+   * Defaults to PNG. Use SVG when scalable vectors and smaller markup are preferred.
+   */
+  generatedImageOutput?: 'png' | 'svg';
+  /** Word grouped drawings: format override; omitted follows generatedImageOutput. */
   drawingOutput?: 'png' | 'svg';
   title?: string;
   imageHandler?: {

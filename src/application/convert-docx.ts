@@ -19,6 +19,8 @@ export interface JsonConversionResult {
 }
 
 async function parseDocx(input: DocxInput, options: ConversionOptions) {
+  if (options.generatedImageOutput !== undefined && !['png', 'svg'].includes(options.generatedImageOutput))
+    throw new DocxError('INVALID_GENERATED_IMAGE_OUTPUT', 'generatedImageOutput 必须为 png 或 svg');
   if (options.drawingOutput !== undefined && !['png', 'svg'].includes(options.drawingOutput))
     throw new DocxError('INVALID_DRAWING_OUTPUT', 'drawingOutput 必须为 png 或 svg');
   const base64ImageSize = options.imageHandler?.base64ImageSize;

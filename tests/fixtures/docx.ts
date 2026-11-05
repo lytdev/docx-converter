@@ -66,7 +66,7 @@ export function sampleDocx(): Uint8Array {
     p(text('中文字体与 English fonts 可以分别设置。', '<w:rFonts w:ascii="Georgia" w:eastAsia="SimSun"/><w:sz w:val="26"/>')),
     p(text('粗体 ', '<w:b/>') + text('斜体 ', '<w:i/>') + text('下划线 ', '<w:u w:val="single"/>') + text('重点高亮', '<w:highlight w:val="yellow"/>')),
     title('02 / 表格与数据'), p(text('表 1 功能保留说明'), '<w:jc w:val="center"/>'),
-    `<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/>${border}</w:tblPr><w:tblGrid><w:gridCol w:w="3000"/><w:gridCol w:w="3000"/></w:tblGrid><w:tr>${cell('内容类型', true)}${cell('HTML 输出', true)}</w:tr><w:tr>${cell('字体 / 样式')}${cell('内联 CSS')}</w:tr><w:tr>${cell('数学公式')}${cell('SVG 图片 + LaTeX')}</w:tr></w:tbl>`,
+    `<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/>${border}</w:tblPr><w:tblGrid><w:gridCol w:w="3000"/><w:gridCol w:w="3000"/></w:tblGrid><w:tr>${cell('内容类型', true)}${cell('HTML 输出', true)}</w:tr><w:tr>${cell('字体 / 样式')}${cell('内联 CSS')}</w:tr><w:tr>${cell('数学公式')}${cell('PNG 图片 + LaTeX')}</w:tr></w:tbl>`,
     title('03 / 数学公式'),
     p(text('勾股定理：') + `<m:oMath><m:sSup><m:e>${mt('a')}</m:e><m:sup>${mt('2')}</m:sup></m:sSup>${mt('+')}<m:sSup><m:e>${mt('b')}</m:e><m:sup>${mt('2')}</m:sup></m:sSup>${mt('=')}<m:sSup><m:e>${mt('c')}</m:e><m:sup>${mt('2')}</m:sup></m:sSup></m:oMath>`),
     p(`<m:oMathPara><m:oMath>${mt('x=')}<m:f><m:num>${mt('−b±')}<m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:e><m:sSup><m:e>${mt('b')}</m:e><m:sup>${mt('2')}</m:sup></m:sSup>${mt('−4ac')}</m:e></m:rad></m:num><m:den>${mt('2a')}</m:den></m:f></m:oMath></m:oMathPara>`),

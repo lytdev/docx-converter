@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { readFile, mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { unzipSync } from 'fflate';
@@ -7,6 +8,21 @@ import { mathParagraph, universityFormulas } from '../fixtures/university-formul
 import { textWmf } from '../fixtures/wmf';
 import { emf } from '../fixtures/emf';
 import { hex, oleEquation } from '../fixtures/ole';
+
+async function convertHtml(
+  page: Page,
+  bytes: Uint8Array,
+  options: Record<string, unknown> = {},
+): Promise<{ html: string; warnings: unknown[] }> {
+  await page.goto('/');
+  await page.addScriptTag({ path: resolve('dist/docx-converter.umd.cjs') });
+  return page.evaluate(async ({ data, options }) => {
+    const api = (window as unknown as { DocxConverter: {
+      convertToHtml: (bytes: Uint8Array, options: Record<string, unknown>) => Promise<{ html: string; warnings: unknown[] }>;
+    } }).DocxConverter;
+    return api.convertToHtml(Uint8Array.from(data), options);
+  }, { data: [...bytes], options });
+}
 
 test('browser worker converts, previews, exports and reopens standalone HTML', async ({ page, context }) => {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
@@ -18,7 +34,7 @@ test('browser worker converts, previews, exports and reopens standalone HTML', a
   const frame = page.frameLocator('#preview');
   await expect(frame.getByRole('heading', { name: '文档转换 · 能力示例', exact: true })).toBeVisible();
   await expect(frame.locator('math')).toHaveCount(0); await expect(frame.locator('img.formula-image')).toHaveCount(2); await expect(frame.locator('table')).toHaveCount(1);
-  expect(await frame.locator('img.formula-image').evaluateAll((images: HTMLImageElement[]) => images.every(image => image.src.startsWith('data:image/svg+xml;base64,') && image.hasAttribute('data-latex') && image.complete && image.naturalWidth > 0))).toBe(true);
+  expect(await frame.locator('img.formula-image').evaluateAll((images: HTMLImageElement[]) => images.every(image => image.src.startsWith('data:image/png;base64,') && image.hasAttribute('data-latex') && image.complete && image.naturalWidth > 0))).toBe(true);
   await expect(frame.locator('figure img')).toBeVisible();
   expect(await frame.locator('img').evaluateAll((images: HTMLImageElement[]) => images.every(img => img.complete && img.naturalWidth > 0))).toBe(true);
   await page.getByRole('tab', { name: 'HTML 源码' }).click(); await expect(page.locator('#source')).toBeVisible();
@@ -78,11 +94,11 @@ test('UMD build works through a plain script tag without bundler globals', async
       convertToJson: (bytes: ArrayBuffer) => Promise<{ document: { blocks: { kind: string }[] }; warnings: unknown[] }>;
     } }).DocxConverter;
     const [r, json] = await Promise.all([api.convertToHtml(bytes), api.convertToJson(bytes)]);
-    return { svgImages: (r.html.match(/data:image\/svg\+xml;base64,/g) ?? []).length, hasMath: r.html.includes('<math'), warnings: r.warnings,
+    return { pngImages: (r.html.match(/data:image\/png;base64,/g) ?? []).length, hasMath: r.html.includes('<math'), warnings: r.warnings,
       jsonHasBlocks: json.document.blocks.length > 5, jsonFirst: json.document.blocks[0]?.kind, jsonWarnings: json.warnings,
       oldExportsAbsent: !('convertDocx' in api) && !('convertDocxToJson' in api) };
   });
-  expect(result).toEqual({ svgImages: 2, hasMath: false, warnings: [], jsonHasBlocks: true, jsonFirst: 'paragraph', jsonWarnings: [], oldExportsAbsent: true });
+  expect(result).toEqual({ pngImages: 3, hasMath: false, warnings: [], jsonHasBlocks: true, jsonFirst: 'paragraph', jsonWarnings: [], oldExportsAbsent: true });
 });
 
 test('plain browser script can offload images above the byte limit', async ({ page }) => {
@@ -195,10 +211,9 @@ test('rasterizes a MathType WMF preview, attaches LaTeX and exports original res
 
 test('long inline formula has a small right margin without clipping', async ({ page }) => {
   const formula = `<m:oMath>${mt('S(x)=1−F(x)=1−P(X≤x)=P(X&gt;x)')}</m:oMath>`;
-  await page.goto('/');
-  await page.locator('#file').setInputFiles({ name: 'inline.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: Buffer.from(docx(p(formula))) });
-  await expect(page.locator('#status')).toHaveText('转换完成');
-  const src = await page.frameLocator('#preview').locator('img.formula-image').getAttribute('src');
+  const result = await convertHtml(page, docx(p(formula)), { generatedImageOutput: 'svg' });
+  await page.setContent(result.html);
+  const src = await page.locator('img.formula-image').getAttribute('src');
   const svgText = Buffer.from(src!.split(',')[1], 'base64').toString('utf8');
   const gap = await page.evaluate(xml => {
     const svg = new DOMParser().parseFromString(xml, 'image/svg+xml').documentElement as unknown as SVGSVGElement;
@@ -214,10 +229,9 @@ test('long inline formula has a small right margin without clipping', async ({ p
 test('SVG formula image keeps glyphs inside its viewport with an inherited font size', async ({ page }) => {
   const styles = `<w:styles ${ns}><w:docDefaults><w:rPrDefault><w:rPr><w:sz w:val="24"/></w:rPr></w:rPrDefault></w:docDefaults></w:styles>`;
   const formula = `<m:oMath>${mt('P')}${mt('=')}${mt('K')}<m:nary><m:naryPr><m:chr m:val="∑"/></m:naryPr><m:e>${mt('P')}</m:e></m:nary></m:oMath>`;
-  await page.goto('/');
-  await page.locator('#file').setInputFiles({ name: 'formula-size.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: Buffer.from(docx(p(formula), { styles })) });
-  await expect(page.locator('#status')).toHaveText('转换完成');
-  const src = await page.frameLocator('#preview').locator('img.formula-image').getAttribute('src');
+  const result = await convertHtml(page, docx(p(formula), { styles }), { generatedImageOutput: 'svg' });
+  await page.setContent(result.html);
+  const src = await page.locator('img.formula-image').getAttribute('src');
   expect(src).toMatch(/^data:image\/svg\+xml;base64,/);
   const svgText = Buffer.from(src!.split(',')[1], 'base64').toString('utf8');
   const clipped = await page.evaluate(svgText => {
@@ -232,14 +246,12 @@ test('SVG formula image keeps glyphs inside its viewport with an inherited font 
 
 test('renders the 300+ formula corpus inline and as display equations without load or clipping failures', async ({ page }) => {
   const body = universityFormulas.map(formula => p(mathParagraph(formula, 'inline')) + p(mathParagraph(formula, 'display'))).join('');
-  await page.goto('/');
-  await page.locator('#file').setInputFiles({ name: 'formula-corpus.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: Buffer.from(docx(body)) });
-  await expect(page.locator('#status')).toHaveText('转换完成', { timeout: 120_000 });
-  await expect(page.locator('#warning-count')).toHaveText('0');
-  const frame = page.frameLocator('#preview');
-  await expect(frame.locator('img.formula-image')).toHaveCount(universityFormulas.length * 2, { timeout: 120_000 });
+  const result = await convertHtml(page, docx(body), { generatedImageOutput: 'svg' });
+  expect(result.warnings).toEqual([]);
+  await page.setContent(result.html);
+  await expect(page.locator('img.formula-image')).toHaveCount(universityFormulas.length * 2, { timeout: 120_000 });
 
-  const failures = await frame.locator('img.formula-image').evaluateAll((images: HTMLImageElement[]) => {
+  const failures = await page.locator('img.formula-image').evaluateAll((images: HTMLImageElement[]) => {
     const problems: string[] = [];
     images.forEach((image, index) => {
       if (!image.complete || image.naturalWidth === 0) { problems.push(`#${index} did not load`); return; }

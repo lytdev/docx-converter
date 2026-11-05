@@ -23,6 +23,7 @@ import '@mathjax/mathjax-stix2-font/js/svg/dynamic/variants.js';
 import type { MathNode } from '../domain/document.js';
 import type { RenderContext } from '../contracts/ports.js';
 import { base64 } from '../modules/images/raster-codec.js';
+import { svgToPng } from '../modules/images/drawing-rasterizer.js';
 
 const adaptor = liteAdaptor();
 RegisterHTMLHandler(adaptor);
@@ -107,8 +108,29 @@ function padSvgViewport(svg: string): string {
   });
 }
 
-/** Turn internally generated MathML into a standalone vector image, without page scripts or network fonts. */
-export function resolveMathImageSource(node: MathNode, context: RenderContext): string | undefined {
+export type MathImageFormat = 'png' | 'svg';
+
+export interface MathImageOutput {
+  src: string;
+  format: MathImageFormat;
+  widthEx: number;
+  heightEx: number;
+  verticalAlignEx?: number;
+}
+
+interface MathSvgSource {
+  svg: string;
+  widthEx: number;
+  heightEx: number;
+  verticalAlignEx?: number;
+}
+
+function svgDataUrl(svg: string): string {
+  return `data:image/svg+xml;base64,${base64(new TextEncoder().encode(svg))}`;
+}
+
+/** Build an isolated SVG from internally generated MathML. */
+function resolveMathSvg(node: MathNode, context: RenderContext): MathSvgSource | undefined {
   try {
     if (node.mathml.length > 100_000) throw new Error('Formula too large');
     const result = document.convert(mathmlForSvg(node.mathml), { display: node.display, em: 16, ex: 8, containerWidth: 1280 });
@@ -116,10 +138,34 @@ export function resolveMathImageSource(node: MathNode, context: RenderContext): 
     if (!svgNode) throw new Error('SVG output missing');
     const svg = padSvgViewport(adaptor.serializeXML(svgNode));
     if (!svg.startsWith('<svg ') || svg.length > 4 * 1024 * 1024) throw new Error('Invalid SVG output');
-    return `data:image/svg+xml;base64,${base64(new TextEncoder().encode(svg))}`;
+    const opening = svg.match(/^<svg\b[^>]*>/)?.[0] ?? '';
+    const widthEx = Number(opening.match(/\bwidth="([\d.]+)ex"/)?.[1]);
+    const heightEx = Number(opening.match(/\bheight="([\d.]+)ex"/)?.[1]);
+    if (!(widthEx > 0 && heightEx > 0)) throw new Error('Invalid SVG dimensions');
+    const alignment = Number(opening.match(/vertical-align:\s*(-?[\d.]+)ex/)?.[1]);
+    return { svg, widthEx, heightEx, verticalAlignEx: Number.isFinite(alignment) ? alignment : undefined };
   } catch {
     context.warn('MATH_IMAGE_FAILED', 'OMML 公式未能生成图片，已保留占位');
     return undefined;
+  }
+}
+
+/** Resolve a formula to PNG or SVG while preserving its Word-relative display size. */
+export async function resolveMathImageOutput(
+  node: MathNode,
+  context: RenderContext,
+  format: MathImageFormat,
+): Promise<MathImageOutput | undefined> {
+  const source = resolveMathSvg(node, context);
+  if (!source) return undefined;
+  const dimensions = { widthEx: source.widthEx, heightEx: source.heightEx, verticalAlignEx: source.verticalAlignEx };
+  if (format === 'svg') return { src: svgDataUrl(source.svg), format, ...dimensions };
+  try {
+    const bytes = await svgToPng(source.svg, source.widthEx * 8, source.heightEx * 8, null);
+    return { src: `data:image/png;base64,${base64(bytes)}`, format, ...dimensions };
+  } catch {
+    context.warn('MATH_PNG_FAILED', 'OMML 公式无法转换为 PNG，已回退为 SVG 图片');
+    return { src: svgDataUrl(source.svg), format: 'svg', ...dimensions };
   }
 }
 

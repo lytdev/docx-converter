@@ -1,6 +1,6 @@
 {
   "name": "@agilehub/docx-converter",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "TypeScript DOCX to HTML JSON And Pdf converter with fonts, tables, images and OMML math",
   "type": "module",
   "author": "lytdev <lytdev@outlook.com>",

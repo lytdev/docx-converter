@@ -23,12 +23,16 @@ export class ImageResolver {
   async resolve(n: ImageNode): Promise<string | undefined> {
     const base64ImageSize = this.options.imageHandler?.base64ImageSize ?? 2048;
     if (n.generatedSvg) {
-      const png = n.generatedKind === 'drawing' && this.options.drawingOutput !== 'svg';
+      const generatedFormat = this.options.generatedImageOutput ?? 'png';
+      const format = n.generatedKind === 'drawing'
+        ? this.options.drawingOutput ?? generatedFormat
+        : generatedFormat;
+      const png = format !== 'svg';
       let bytes: Uint8Array;
       try {
         bytes = png ? await drawingToPng(n.generatedSvg, n.width ?? 0, n.height ?? 0) : new TextEncoder().encode(n.generatedSvg);
       } catch {
-        this.context.warn('DRAWING_PNG_FAILED', '流程图无法生成 PNG；请检查 Canvas/字体环境，或设置 drawingOutput: svg');
+        this.context.warn('DRAWING_PNG_FAILED', '生成的图形或图表无法转换为 PNG；请检查 Canvas/字体环境，或设置 generatedImageOutput: svg');
         return undefined;
       }
       this.context.checkAbort();
@@ -37,7 +41,8 @@ export class ImageResolver {
       let src = `data:${mimeType};base64,${base64(bytes)}`;
       if (!imageHandler?.processLargeImage || bytes.length <= base64ImageSize) return src;
       if (imageHandler?.processLargeImage && bytes.length > base64ImageSize) {
-        const result = await imageHandler.processLargeImage(new Blob([new Uint8Array(bytes)], { type: mimeType }), suffix, `${n.path?.split('/').pop()?.replace(/\.xml$/, '') || 'drawing'}.${suffix}`);
+        const baseName = n.path?.split('/').pop()?.replace(/\.xml$/, '') || n.generatedKind || 'image';
+        const result = await imageHandler.processLargeImage(new Blob([new Uint8Array(bytes)], { type: mimeType }), suffix, `${baseName}.${suffix}`);
         this.context.checkAbort();
         src = result?.fileUrl;
       }

@@ -3,7 +3,7 @@ import type { ConversionOptions } from '../../contracts/conversion.js';
 import type { RenderContext, ResourceReader } from '../../contracts/ports.js';
 import { ImageResolver } from '../../modules/images/image-resolver.js';
 import { safeUrl } from '../../shared/markup.js';
-import { resolveMathImageSource } from '../math-image-source.js';
+import { resolveMathImageOutput } from '../math-image-source.js';
 
 /** Projects the parsed document model into a JSON-safe tree with resolved display URLs. */
 export class JsonRenderer {
@@ -45,8 +45,10 @@ export class JsonRenderer {
         const src = await this.images.resolve(node);
         result.push(src ? { ...node, src } : { ...node });
       } else if (node.kind === 'math') {
-        const src = this.options.formulaOutput === 'mathml' ? undefined : resolveMathImageSource(node, this.context);
-        result.push(src ? { ...node, src } : { ...node });
+        const image = this.options.formulaOutput === 'mathml'
+          ? undefined
+          : await resolveMathImageOutput(node, this.context, this.options.generatedImageOutput ?? 'png');
+        result.push(image ? { ...node, src: image.src } : { ...node });
       } else if (node.kind === 'link') {
         const url = safeUrl(node.url);
         if (!url && node.url) this.context.warn('UNSAFE_LINK', '已移除不安全的超链接地址');

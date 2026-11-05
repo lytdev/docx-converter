@@ -24,7 +24,7 @@ describe('DOCX conversion', () => {
     if (math.kind !== 'math') throw new Error('Expected math');
     expect(math.mathml).toContain('<mfrac>');
     expect(math.latex).toContain('\\frac');
-    expect(math.src).toMatch(/^data:image\/svg\+xml;base64,/);
+    expect(math.src).toMatch(/^data:image\/png;base64,/);
     const table = json.document.blocks[1];
     if (table.kind !== 'table') throw new Error('Expected table');
     expect(table.rows[0].cells[0].blocks[0]).toMatchObject({ kind: 'paragraph', children: [{ kind: 'text', text: 'cell', style: {} }] });
@@ -211,18 +211,22 @@ describe('DOCX conversion', () => {
     const r = await convertToHtml(docx(p(image() + `<w:hyperlink r:id="link1">${text('bad')}</w:hyperlink>`), { rels: `<Relationship Id="image1" Type="${R}/image" Target="file:///C:/secret.png" TargetMode="External"/><Relationship Id="link1" Type="${R}/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>` }));
     expect(r.html).not.toContain('file:///'); expect(r.html).not.toContain('javascript:'); expect(r.warnings.map(w => w.code)).toContain('EXTERNAL_IMAGE');
   });
-  it('produces standalone SVG images and LaTeX for OMML by default', async () => {
+  it('produces standalone PNG images and LaTeX for OMML by default', async () => {
     const formula = `<m:oMath><m:f><m:num><m:sSup><m:e>${mt('x')}</m:e><m:sup>${mt('2')}</m:sup></m:sSup></m:num><m:den><m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:deg/> <m:e>${mt('y')}</m:e></m:rad></m:den></m:f><m:m><m:mr><m:e>${mt('1')}</m:e><m:e>${mt('2')}</m:e></m:mr><m:mr><m:e>${mt('3')}</m:e><m:e>${mt('4')}</m:e></m:mr></m:m></m:oMath>`;
     const r = await convertToHtml(docx(p(text('before') + formula + text('after'))));
     const formulas = elements(r.html, 'img').filter(e => e.getAttribute('data-type') === 'formula');
     expect(formulas).toHaveLength(1);
-    expect(formulas[0].getAttribute('src')).toMatch(/^data:image\/svg\+xml;base64,/);
-    const svg = Buffer.from(formulas[0].getAttribute('src')!.split(',')[1], 'base64').toString('utf8');
-    expect(svg).toContain('<svg'); expect(svg).toContain('<path'); expect(svg).not.toContain('<math');
+    expect(formulas[0].getAttribute('src')).toMatch(/^data:image\/png;base64,/);
+    const image = Buffer.from(formulas[0].getAttribute('src')!.split(',')[1], 'base64');
+    expect([...image.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
     expect(r.html).not.toContain('<math');
     const latex = formulas[0].getAttribute('data-latex');
     expect(latex).toContain('\\frac'); expect(latex).toContain('\\begin{matrix}1&2\\\\3&4\\end{matrix}');
     expect(r.html.indexOf('before')).toBeLessThan(r.html.indexOf('<img')); expect(r.html.indexOf('<img')).toBeLessThan(r.html.indexOf('after'));
+  });
+  it('allows explicit SVG output for generated formulas', async () => {
+    const r = await convertToHtml(docx(p(`<m:oMath>${mt('x')}</m:oMath>`)), { generatedImageOutput: 'svg' });
+    expect(elements(r.html, 'img')[0].getAttribute('src')).toMatch(/^data:image\/svg\+xml;base64,/);
   });
   it('allows explicit MathML output for consumers that need semantic markup', async () => {
     const r = await convertToHtml(docx(p(`<m:oMath><m:f><m:num>${mt('x')}</m:num><m:den>${mt('2')}</m:den></m:f></m:oMath>`)), { formulaOutput: 'mathml' });
@@ -231,9 +235,9 @@ describe('DOCX conversion', () => {
   });
   it('keeps the SVG viewport complete when the paragraph specifies a font size', async () => {
     const formula = `<m:oMath><m:sSub><m:e>${mt('P')}</m:e><m:sub>${mt('c')}</m:sub></m:sSub>${mt('=')}<m:nary><m:naryPr><m:chr m:val="∑"/></m:naryPr><m:e>${mt('P')}</m:e></m:nary></m:oMath>`;
-    const plain = await convertToHtml(docx(p(formula)));
+    const plain = await convertToHtml(docx(p(formula)), { generatedImageOutput: 'svg' });
     const styles = `<w:styles ${ns}><w:docDefaults><w:rPrDefault><w:rPr><w:sz w:val="24"/></w:rPr></w:rPrDefault></w:docDefaults></w:styles>`;
-    const sized = await convertToHtml(docx(p(formula), { styles }));
+    const sized = await convertToHtml(docx(p(formula), { styles }), { generatedImageOutput: 'svg' });
     const svg = (html: string) => Buffer.from(elements(html, 'img')[0].getAttribute('src')!.split(',')[1], 'base64').toString('utf8');
     const width = (value: string) => Number(value.match(/\bwidth="([\d.]+)ex"/)![1]);
     expect(width(svg(sized.html))).toBeCloseTo(width(svg(plain.html)), 2);
@@ -256,7 +260,7 @@ describe('DOCX conversion', () => {
   it('warns on unsupported math instead of attaching inaccurate LaTeX', async () => {
     const r = await convertToHtml(docx(p(`<m:oMath><m:phant><m:e>${mt('x')}</m:e></m:phant></m:oMath>`)));
     expect(r.warnings.some(w => w.code === 'UNSUPPORTED_MATH')).toBe(true); expect(r.html).not.toContain('data-latex=');
-    expect(elements(r.html, 'img')[0].getAttribute('src')).toMatch(/^data:image\/svg\+xml;base64,/);
+    expect(elements(r.html, 'img')[0].getAttribute('src')).toMatch(/^data:image\/png;base64,/);
   });
   it('retains OLE resource and preview without inventing LaTeX', async () => {
     const r = await convertToHtml(docx(p(`<w:r><w:object><v:shape style="width:40pt;height:20pt"><v:imagedata r:id="preview"/></v:shape><o:OLEObject ProgID="Equation.3" r:id="ole"/></w:object></w:r>`), { rels: `<Relationship Id="preview" Type="${R}/image" Target="media/a.png"/><Relationship Id="ole" Type="${R}/oleObject" Target="embeddings/e.bin"/>`, media: { 'a.png': png }, extra: { 'word/embeddings/e.bin': new Uint8Array([1, 2]) } }));
@@ -318,7 +322,7 @@ describe('DOCX conversion', () => {
   });
   it('renders literal parentheses at normal size beside a fraction', async () => {
     const size = '<w:rPr><w:sz w:val="28"/></w:rPr>';
-    const r = await convertToHtml(docx(p(`<m:oMath><m:r>${size}<m:t>=(</m:t></m:r><m:f><m:num>${mt('σ')}</m:num><m:den>${mt('M')}</m:den></m:f><m:r>${size}<m:t>)</m:t></m:r></m:oMath>`)));
+    const r = await convertToHtml(docx(p(`<m:oMath><m:r>${size}<m:t>=(</m:t></m:r><m:f><m:num>${mt('σ')}</m:num><m:den>${mt('M')}</m:den></m:f><m:r>${size}<m:t>)</m:t></m:r></m:oMath>`)), { generatedImageOutput: 'svg' });
     const src = elements(r.html, 'img')[0].getAttribute('src')!;
     const svg = Buffer.from(src.split(',')[1], 'base64').toString('utf8');
     // MathJax cancels a run's font-size for letters but not for fences, which

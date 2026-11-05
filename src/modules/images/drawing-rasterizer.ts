@@ -1,8 +1,13 @@
 import { Canvg } from 'canvg';
 import { DOMParser } from '@xmldom/xmldom';
 
-/** Only accepts SVG built by our grouped-shape renderer (no external resources). */
-export async function drawingToPng(svg: string, displayWidth: number, displayHeight: number): Promise<Uint8Array> {
+/** Rasterize trusted internal SVG without allowing external resources. */
+export async function svgToPng(
+  svg: string,
+  displayWidth: number,
+  displayHeight: number,
+  background: string | null = '#ffffff',
+): Promise<Uint8Array> {
   if (!Number.isFinite(displayWidth + displayHeight) || displayWidth <= 0 || displayHeight <= 0 || svg.length > 4 * 1024 * 1024)
     throw new Error('Invalid drawing dimensions');
   // Bound memory for unusually large drawings while preserving their aspect ratio.
@@ -39,7 +44,10 @@ export async function drawingToPng(svg: string, displayWidth: number, displayHei
   // applies an additional transform and offsets nested groups with a viewBox.
   const sizedSvg = svg.replace(/^<svg\b[^>]*>/, tag => tag.replace(/\bwidth="[^"]*"/, `width="${width}"`).replace(/\bheight="[^"]*"/, `height="${height}"`))
     .replace(/stroke-width="([\d.]+)" vector-effect="non-scaling-stroke"/g, (_, value: string) => `stroke-width="${Number(value) * scale}" vector-effect="non-scaling-stroke"`);
-  context.fillStyle = '#ffffff'; context.fillRect(0, 0, width, height);
+  if (background) {
+    context.fillStyle = background;
+    context.fillRect(0, 0, width, height);
+  }
   const renderer = Canvg.fromString(context, sizedSvg, {
     DOMParser: DOMParser as unknown as NonNullable<Parameters<typeof Canvg.fromString>[2]>['DOMParser'],
     ignoreAnimation: true, ignoreMouse: true, ignoreDimensions: true, ignoreClear: true,
@@ -47,4 +55,9 @@ export async function drawingToPng(svg: string, displayWidth: number, displayHei
   });
   await renderer.render();
   return encode();
+}
+
+/** Grouped drawings use a white page background. */
+export function drawingToPng(svg: string, displayWidth: number, displayHeight: number): Promise<Uint8Array> {
+  return svgToPng(svg, displayWidth, displayHeight, '#ffffff');
 }

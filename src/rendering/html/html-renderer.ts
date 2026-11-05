@@ -104,7 +104,7 @@ export class HtmlRenderer {
       else if (n.kind === 'image') html += await this.images.render(n, inlineImage);
       else if (n.kind === 'math') html += this.options.formulaOutput === 'mathml'
         ? `<span class="formula-item" data-type="formula"${n.latex !== undefined ? ` data-latex="${esc(n.latex)}"` : ''}>${n.mathml}</span>`
-        : renderMathImage(n, this.context);
+        : await renderMathImage(n, this.context, this.options.generatedImageOutput ?? 'png');
       else if (n.kind === 'link') {
         const url = safeUrl(n.url), content = await this.inlines(n.children);
         if (!url) { if (n.url) this.context.warn('UNSAFE_LINK', '已移除不安全的超链接地址'); html += content; }

@@ -26,7 +26,7 @@ src/
 │   └── images/                  位图识别、EMF 转 PNG、转换策略、资源地址解析
 ├── rendering/html/              HTML、CSS、列表、图注表注、图片展示
 ├── rendering/json/              文档模型的 JSON 安全投影与图片地址解析
-├── rendering/math-image-source.ts HTML / JSON 共用的 OMML SVG 数据源
+├── rendering/math-image-source.ts HTML / JSON 共用的 OMML PNG/SVG 数据源
 ├── adapters/
 │   ├── browser/                  WMF/EMF → PNG 图片适配器
 │   └── node/                     文件读取与显式启用的 ImageMagick 适配器
@@ -120,7 +120,7 @@ View 在预览标签页可见时挂载新的 sandbox iframe；源码标签页下
 
 1. **样式解析**：docDefaults → 段落样式 basedOn 链 → 字符样式 → 直接属性。缺失值与 false 区分；主题引用转换为实际字体/颜色。`RunStyle` 中保留中文/西文字体，渲染时按 Unicode 字符类别拆分。
 2. **表格网格**：直接遍历 tr/tc，维护逻辑列位置及上一行的纵向合并起点。合并宽度匹配时更新 rowspan，最后按完整合并区域计算外框/内框。单元格明确 none/nil 优先。嵌套表格独立解析。单元格 `w:shd` 的 `w:fill="auto"` 不生成黑色背景；明确的十六进制填充和 `w:themeFill` 分别解析，避免混用图案颜色 `w:themeColor`。
-3. **公式**：OMML 递归生成内部 MathML，并同步重建 LaTeX；HTML 渲染器默认用 MathJax 将内部 MathML 转成字形路径内嵌的 SVG，再作为 `data:` 图片输出。字形取自 STIX Two Math，以贴近 Word OMML 默认的 Cambria Math（后者为专有字体，MathJax 不能分发，因此只能近似）。段落字号由外层 HTML 继承，不重复传入 SVG 排版；独立 SVG 的 viewBox 留有字形外溢余量，避免图片裁切。显式设置 `formulaOutput: 'mathml'` 可保留语义标记。旧版 OLE 公式按包内关系读取，不执行对象；有界 CFB 读取器只取 `Equation Native` 流，MTEF 3/5 解析器保守重建 LaTeX，再检查 WMF 标准字体数字是否与预览明显冲突。结果附在对应图片的 `data-latex`；解析失败或冲突时保留图片，省略属性。OMML 遇到不支持结构时也省略不可靠的 LaTeX。
+3. **公式**：OMML 递归生成内部 MathML，并同步重建 LaTeX；HTML 渲染器默认用 MathJax 把内部 MathML 转成字形路径内嵌的 SVG，再栅格化为透明 PNG 并作为 `data:` 图片输出。设置 `generatedImageOutput: 'svg'` 可保留矢量输出，`formulaOutput: 'mathml'` 可保留语义标记。字形取自 STIX Two Math，以贴近 Word OMML 默认的 Cambria Math（后者为专有字体，MathJax 不能分发，因此只能近似）。段落字号由外层 HTML 继承，独立 SVG 的 viewBox 留有字形外溢余量，避免图片裁切。旧版 OLE 公式按包内关系读取，不执行对象；有界 CFB 读取器只取 `Equation Native` 流，MTEF 3/5 解析器保守重建 LaTeX，再检查 WMF 标准字体数字是否与预览明显冲突。结果附在对应图片的 `data-latex`；解析失败或冲突时保留图片，省略属性。OMML 遇到不支持结构时也省略不可靠的 LaTeX。
 4. **图片**：原始资源永远可回收；能识别的位图可直接嵌入。普通 EMF 在默认路径按需加载 `emf-converter` 转成 PNG，自定义 `imageHandler.convert` 优先；WMF 等其他格式仍可用 convert 适配器，地址处理交给 resolve。浏览器演示应用使用同一转换器处理普通 WMF/EMF 及公式预览；Node 入口还导出显式启用的 ImageMagick 公式预览适配器。失败时沿用占位及诊断。
 5. **后处理**：在结构模型渲染中识别相邻图注与表注；合并相邻同样式文本，不使用按序号对齐原始 Word 和 HTML 的补丁。
 6. **环境隔离**：主入口无 Node 内置模块；Node 路径入口单独导出。网页在 Worker 中调用同一个主入口，取消时终止 Worker。npm 调用方自行选择执行环境。
@@ -154,6 +154,6 @@ View 在预览标签页可见时挂载新的 sandbox iframe；源码标签页下
 
 ## 验收
 
-字体与样式值、标题规则、表格结构、公式 SVG/MathML/LaTeX、资源保存通过集成测试验证。`tests/fixtures/university-formulas.ts` 的 300 多个大学数学/物理公式会逐条转换：断言无诊断、LaTeX 可重建、SVG 结构有效；浏览器验收再检查所有图片可加载且字形不超出 viewBox。模块测试覆盖独立渲染、会话隔离和 Worker 清理；浏览器验收覆盖 Worker、预览、HTML 下载、重新打开、普通 script 调用、小屏布局和旧请求覆盖保护。现有 Java demo 仅用于本地对照检查，不纳入 npm 包。
+字体与样式值、标题规则、表格结构、公式 PNG/SVG/MathML/LaTeX、资源保存通过集成测试验证。`tests/fixtures/university-formulas.ts` 的 300 多个大学数学/物理公式会逐条转换：断言无诊断、LaTeX 可重建、SVG 结构有效；浏览器验收再检查默认 PNG、显式 SVG、所有图片可加载且字形不超出 viewBox。模块测试覆盖独立渲染、会话隔离和 Worker 清理；浏览器验收覆盖 Worker、预览、HTML 下载、重新打开、普通 script 调用、小屏布局和旧请求覆盖保护。现有 Java demo 仅用于本地对照检查，不纳入 npm 包。
 
 `npm run check` 运行依赖约束、四组 TypeScript 校验及 Vitest；`npm run build` 也会校验架构和类型。完整验收执行 `npm run verify`。新增功能的文件归属、检查命令与提交范围见 [贡献指南](../CONTRIBUTING.md)。

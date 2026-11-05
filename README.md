@@ -1,7 +1,7 @@
 # DOCX → HTML / JSON / PDF 转换器
 
-[![npm version](https://img.shields.io/npm/v/@agile-hub/docx-converter.svg)](https://www.npmjs.com/package/@agile-hub/docx-converter)
-[![npm license](https://img.shields.io/npm/l/@agile-hub/docx-converter.svg)](https://www.npmjs.com/package/@agile-hub/docx-converter)
+[![npm version](https://img.shields.io/npm/v/@agilehub/docx-converter.svg)](https://www.npmjs.com/package/@agilehub/docx-converter)
+[![npm license](https://img.shields.io/npm/l/@agilehub/docx-converter.svg)](https://www.npmjs.com/package/@agilehub/docx-converter)
 
 一个用 **TypeScript + Vite** 实现的 DOCX 转换库，可以在浏览器或 Node.js 中把 Word 文档（`.docx`）转换成：
 
@@ -31,10 +31,10 @@
 ## 安装
 
 ```sh
-npm install @agile-hub/docx-converter
+npm install @agilehub/docx-converter
 ```
 
-也可以使用 `pnpm add @agile-hub/docx-converter` 或 `yarn add @agile-hub/docx-converter`。包内自带 TypeScript 类型声明，同时提供 ESM、CommonJS 和 UMD 构建；Vite、Vue、React、Next.js 或其他 TypeScript / JavaScript 项目都可以直接使用，不绑定 UI 框架。
+也可以使用 `pnpm add @agilehub/docx-converter` 或 `yarn add @agilehub/docx-converter`。包内自带 TypeScript 类型声明，同时提供 ESM、CommonJS 和 UMD 构建；Vite、Vue、React、Next.js 或其他 TypeScript / JavaScript 项目都可以直接使用，不绑定 UI 框架。
 
 Node.js 环境要求 **22.12+**；浏览器端无需额外系统环境，公式字体和图片转换依赖会随 npm 依赖一并安装。
 
@@ -47,12 +47,12 @@ Node.js 环境要求 **22.12+**；浏览器端无需额外系统环境，公式�
 npm pack
 
 # 在目标项目中安装
-npm install /absolute/path/agile-hub-docx-converter-0.1.0.tgz
+npm install /absolute/path/agilehub-docx-converter-0.2.0.tgz
 ```
 
 ### 普通 script 标签
 
-npm 安装包和本仓库的构建产物中都包含 `dist/docx-converter.umd.cjs`（UMD，依赖已内联）。从 npm 安装时文件位于 `node_modules/@agile-hub/docx-converter/dist/docx-converter.umd.cjs`；把它复制到网站的静态资源目录即可引用。`.cjs` 的 MIME 类型可能不被浏览器识别，建议重命名为 `docx-converter.js` 后再使用。
+npm 安装包和本仓库的构建产物中都包含 `dist/docx-converter.umd.cjs`（UMD，依赖已内联）。从 npm 安装时文件位于 `node_modules/@agilehub/docx-converter/dist/docx-converter.umd.cjs`；把它复制到网站的静态资源目录即可引用。`.cjs` 的 MIME 类型可能不被浏览器识别，建议重命名为 `docx-converter.js` 后再使用。
 
 ```html
 <input id="file" type="file" accept=".docx">
@@ -100,17 +100,17 @@ npm run preview
 
 | 场景 | 入口 | 方法 |
 | --- | --- | --- |
-| 浏览器项目（Vite / React / Vue 等） | `@agile-hub/docx-converter` | `convertToHtml`、`convertToJson`、`convertToPdf` |
+| 浏览器项目（Vite / React / Vue 等） | `@agilehub/docx-converter` | `convertToHtml`、`convertToJson`、`convertToPdf` |
 | 普通 `<script>` 标签 | `dist/docx-converter.umd.cjs` | `DocxConverter.convertToHtml` 等 |
-| Node.js，已有文件路径 | `@agile-hub/docx-converter/node` | `convertToHtmlFile`、`convertToJsonFile`、`convertToPdfFile` |
-| 浏览器，需要额外图片格式支持 | `@agile-hub/docx-converter/browser-metafile` | `convertMetafileImage` |
+| Node.js，已有文件路径 | `@agilehub/docx-converter/node` | `convertToHtmlFile`、`convertToJsonFile`、`convertToPdfFile` |
+| 浏览器，需要额外图片格式支持 | `@agilehub/docx-converter/browser-metafile` | `convertMetafileImage` |
 
 所有方法都返回 `Promise`，参数中的 `options` 可省略。
 
 ### 浏览器 + 构建工具
 
 ```ts
-import { convertToHtml } from '@agile-hub/docx-converter';
+import { convertToHtml } from '@agilehub/docx-converter';
 
 const file = document.querySelector<HTMLInputElement>('#file')!.files![0];
 
@@ -132,7 +132,7 @@ console.log(result.warnings, result.stats);
 
 ```ts
 import { writeFile } from 'node:fs/promises';
-import { convertToHtmlFile, convertToJsonFile } from '@agile-hub/docx-converter/node';
+import { convertToHtmlFile, convertToJsonFile } from '@agilehub/docx-converter/node';
 
 const html = await convertToHtmlFile('report.docx');
 const json = await convertToJsonFile('report.docx');
@@ -172,7 +172,7 @@ interface ConversionResult {
 ### JSON
 
 ```ts
-import { convertToJson, type JsonConversionResult } from '@agile-hub/docx-converter';
+import { convertToJson, type JsonConversionResult } from '@agilehub/docx-converter';
 
 const result: JsonConversionResult = await convertToJson(file);
 JSON.stringify(result, null, 2);
@@ -191,14 +191,14 @@ interface JsonConversionResult {
 
 `result.document.blocks` 是按原文顺序排列的段落与表格；表格单元格内仍然是 `blocks`，段落内的 `children` 包含文字、图片、公式、链接等节点。JSON 结果的 `resources` 只包含资源的 `path`、`mimeType`、`size`，因此整个返回值可以直接序列化；需要原始二进制时请使用 `convertToHtml` 的 `resources`。
 
-`formulaOutput: 'image'`（默认）时，OMML 公式节点同时包含 MathML、可提取的 LaTeX 和自包含 SVG `src`；设为 `'mathml'` 时不生成 SVG。`output` 和 `title` 只影响 HTML 包装，对 JSON 文档树没有影响。
+`formulaOutput: 'image'`（默认）时，OMML 公式节点同时包含 MathML、可提取的 LaTeX 和自包含 PNG `src`；设置 `generatedImageOutput: 'svg'` 可改为 SVG，设为 `formulaOutput: 'mathml'` 时不生成图片。`output` 和 `title` 只影响 HTML 包装，对 JSON 文档树没有影响。
 
 `convertToHtml` 与 `convertToJson` 接受相同的输入和选项，但**是两次独立转换**；如果同时调用，上传回调也会各执行一次。
 
 ### PDF
 
 ```ts
-import { convertToPdf } from '@agile-hub/docx-converter';
+import { convertToPdf } from '@agilehub/docx-converter';
 
 const result = await convertToPdf(fileOrUrl, { pdf: { format: 'a4', margin: 15 } });
 const url = URL.createObjectURL(new Blob([result.bytes], { type: result.mimeType }));
@@ -213,7 +213,7 @@ Node 中按文件路径导出：
 
 ```ts
 import { writeFile } from 'node:fs/promises';
-import { convertToPdfFile } from '@agile-hub/docx-converter/node';
+import { convertToPdfFile } from '@agilehub/docx-converter/node';
 
 const result = await convertToPdfFile('./demo.docx', {
   pdf: { executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' },
@@ -283,8 +283,9 @@ convertToPdfFile(path, options?)
 | --- | --- | --- | --- |
 | `output` | `'document' \| 'fragment'` | `'document'` | HTML 输出完整页面或正文片段；对 JSON、PDF 无影响。 |
 | `title` | `string` | `'DOCX 转换文档'` | 完整 HTML 页面的 `<title>`，不修改正文标题。 |
-| `formulaOutput` | `'image' \| 'mathml'` | `'image'` | OMML 公式输出为自包含 SVG 图片，或保留语义 MathML。 |
-| `drawingOutput` | `'png' \| 'svg'` | `'png'` | Word 组合图形的图片格式；不控制公式、原生图表或普通嵌入图片。 |
+| `formulaOutput` | `'image' \| 'mathml'` | `'image'` | OMML 公式输出为图片，或保留语义 MathML。 |
+| `generatedImageOutput` | `'png' \| 'svg'` | `'png'` | OMML 公式与原生图表的图片格式；默认 PNG。 |
+| `drawingOutput` | `'png' \| 'svg'` | 继承 `generatedImageOutput`（默认 PNG） | Word 组合图形的图片格式，可单独覆盖 `generatedImageOutput`。 |
 | `imageHandler` | 对象，见下文 | 内嵌 Base64 | 图片格式转换、大小阈值和自定义上传。 |
 | `onProgress` | `(event) => void` | 不回调 | 接收转换进度。 |
 | `signal` | `AbortSignal` | 不设置 | 传入 `AbortController.signal` 请求取消。 |
@@ -333,7 +334,7 @@ convertToPdfFile(path, options?)
 
 ## 常见任务示例
 
-下面各示例假设已从 `@agile-hub/docx-converter` 导入所需方法，且 `file` 是浏览器中选择的 DOCX 文件。
+下面各示例假设已从 `@agilehub/docx-converter` 导入所需方法，且 `file` 是浏览器中选择的 DOCX 文件。
 
 ### 预览 HTML 到 iframe
 
@@ -418,7 +419,7 @@ controller.abort();
 const result = await convertToHtml(file, { formulaOutput: 'mathml' });
 ```
 
-默认的 `formulaOutput: 'image'` 会生成带 `data-latex` 的自包含 SVG 图片，适合直接展示和复制；`mathml` 保留语义标记，适合需要自行排版或进一步处理的场景。
+默认的 `formulaOutput: 'image'` 会生成带 `data-latex` 的自包含 PNG 图片，适合直接展示和复制；`generatedImageOutput: 'svg'` 可保留矢量格式，`mathml` 则保留语义标记，适合需要自行排版或进一步处理的场景。
 
 ## 进阶用法
 
@@ -429,8 +430,8 @@ DOCX 中的 **EMF 图片默认使用 [emf-converter](https://github.com/Christop
 浏览器中可显式接入同时处理普通 WMF 和 EMF 的适配器：
 
 ```ts
-import { convertToHtml } from '@agile-hub/docx-converter';
-import { convertMetafileImage } from '@agile-hub/docx-converter/browser-metafile';
+import { convertToHtml } from '@agilehub/docx-converter';
+import { convertMetafileImage } from '@agilehub/docx-converter/browser-metafile';
 
 const result = await convertToHtml(file, {
   imageHandler: { convert: convertMetafileImage },
@@ -452,7 +453,7 @@ LaTeX 是从 OLE/MTEF **重建**的，不一定等于作者最初输入的源码
 安装 ImageMagick 后，可以显式启用本地进程适配器，并指定可信的可执行文件路径：
 
 ```ts
-import { convertToHtmlFile, createImageMagickPreviewConverter } from '@agile-hub/docx-converter/node';
+import { convertToHtmlFile, createImageMagickPreviewConverter } from '@agilehub/docx-converter/node';
 
 const result = await convertToHtmlFile('demo.docx', {
   imageHandler: { convert: createImageMagickPreviewConverter('magick') },
@@ -463,20 +464,21 @@ const result = await convertToHtmlFile('demo.docx', {
 
 ### OMML 公式的实现说明
 
-默认输出 `<img src="data:image/svg+xml;base64,..." data-latex="...">`，可作为独立 HTML 打开，不需要外部字体文件或 MathJax 页面脚本。公式字形使用 STIX Two Math（与 Word OMML 默认的 Cambria Math 同为衬线数学字体，字形接近但不完全相同；Cambria Math 是专有字体，无法随 MathJax 分发）。MathJax 的动态字体数据（积分号、双线字母、拉伸括号等扩展字形）会随构建产物一起打包，因此包体积比只含基础字形时大约多 1 MB。
+默认输出 `<img src="data:image/png;base64,..." data-latex="...">`，可作为独立 HTML 打开，不需要外部字体文件或 MathJax 页面脚本。需要无损缩放时可设置 `generatedImageOutput: 'svg'`，此时输出自包含 SVG。公式字形使用 STIX Two Math（与 Word OMML 默认的 Cambria Math 同为衬线数学字体，字形接近但不完全相同；Cambria Math 是专有字体，无法随 MathJax 分发）。MathJax 的动态字体数据（积分号、双线字母、拉伸括号等扩展字形）会随构建产物一起打包，因此包体积比只含基础字形时大约多 1 MB。
 
 ### 原生图表与组合图形
 
-- **原生图表**：支持从 OOXML 图表缓存读取标准折线图并生成 SVG，保留分类、曲线、数值坐标轴及数据表；HTML 和 JSON 均可使用。不重新计算嵌入工作簿；其他图表类型、组合图、堆积图及复杂样式尚未完整支持。图表图片超过上传阈值时，图片回调会收到 SVG Blob 和 `svg` 后缀。
-- **Word 组合图形**：支持 DrawingML 嵌套组合中的矩形、圆角矩形、椭圆、直线及三角箭头，并把文本框文字与图形一起生成图片。`drawingOutput` 默认为 `'png'`，可设为 `'svg'`：
+- **原生图表**：支持从 OOXML 图表缓存读取标准折线图并生成图片，保留分类、曲线、数值坐标轴及数据表；HTML 和 JSON 均可使用。`generatedImageOutput` 默认为 `'png'`，可设为 `'svg'`。不重新计算嵌入工作簿；其他图表类型、组合图、堆积图及复杂样式尚未完整支持。
+- **Word 组合图形**：支持 DrawingML 嵌套组合中的矩形、圆角矩形、椭圆、直线及三角箭头，并把文本框文字与图形一起生成图片。`drawingOutput` 默认继承 `generatedImageOutput`（即 PNG），可单独设为 `'svg'`：
 
 ```ts
 await convertToHtml(file);                        // 默认 PNG
+await convertToHtml(file, { generatedImageOutput: 'svg' }); // 公式和图表使用 SVG
 await convertToHtml(file, { drawingOutput: 'svg' });
 await convertToJson(file, { drawingOutput: 'png' });
 ```
 
-PNG 使用白色背景，默认按显示尺寸的 3 倍分辨率生成，超大图按最长边 8192 像素、约 1600 万像素的上限等比例降低倍率。栅格化失败时返回 `DRAWING_PNG_FAILED` 警告，不会静默改为 SVG。
+组合图形的 PNG 使用白色背景，默认按显示尺寸的 3 倍分辨率生成，超大图按最长边 8192 像素、约 1600 万像素的上限等比例降低倍率。栅格化失败时返回 `DRAWING_PNG_FAILED` 警告，不会静默改为 SVG。
 
 ## 错误、进度与取消
 
@@ -487,7 +489,7 @@ PNG 使用白色背景，默认按显示尺寸的 3 倍分辨率生成，超大�
 - `DocxError` 提供 `code` 和 `message`，可用于分支处理。
 
 ```ts
-import { DocxError } from '@agile-hub/docx-converter';
+import { DocxError } from '@agilehub/docx-converter';
 
 try {
   const result = await convertToHtml(file);
@@ -513,7 +515,7 @@ try {
 | 列表 | 常见多级列表、起始编号和跨段落续号 | 自定义编号模板和复杂重启规则为近似显示 |
 | 表格 | 直接子节点解析、嵌套表格、行列合并、宽度、底色、边框、三线表、单元格边距/对齐 | 自动分页、复杂行高/文字方向、条件样式未完整实现 |
 | 图片 | 内嵌常规位图、EMF → PNG、尺寸、alt、Base64、自定义地址、图注 | 浮动图片按正文顺序显示；裁剪/旋转未完整实现 |
-| OMML 公式 | 自包含 SVG + `data-latex`；可选 MathML；分式、根式、上下标、矩阵、方程组、重音、上下限等 | 不支持的结构保留可解析内容并警告，省略不可靠的 LaTeX |
+| OMML 公式 | 默认自包含 PNG + `data-latex`；可选 SVG 或 MathML；分式、根式、上下标、矩阵、方程组、重音、上下限等 | 不支持的结构保留可解析内容并警告，省略不可靠的 LaTeX |
 | MathType / OLE | 保留原始对象和预览图；从 MTEF 3/5 保守重建 LaTeX | 模板支持有限；无法准确重建时省略 `data-latex` |
 | 图形 / 文本框 | 保留可用位图回退；文本框内容按正文展开 | 组合图形之外的 DrawingML/VML 几何图形、SmartArt 暂未转换为 SVG |
 | 图注 / 表注 | 相邻“图 + 数字”→ `figure/figcaption`；“表 + 数字”→ `caption` | 规则匹配可能需要人工核对 |
@@ -529,8 +531,8 @@ try {
 
 ## 常见问题
 
-**安装 `@agile-hub/docx-converter` 失败？**
-请确认包名拼写正确，并执行 `npm install @agile-hub/docx-converter`。如果所用镜像源尚未同步最新版本，可改用官方源安装（`npm install @agile-hub/docx-converter --registry=https://registry.npmjs.org`），或在本仓库执行 `npm pack` 后用生成的 `.tgz` 安装。
+**安装 `@agilehub/docx-converter` 失败？**
+请确认包名拼写正确，并执行 `npm install @agilehub/docx-converter`。如果所用镜像源尚未同步最新版本，可改用官方源安装（`npm install @agilehub/docx-converter --registry=https://registry.npmjs.org`），或在本仓库执行 `npm pack` 后用生成的 `.tgz` 安装。
 
 **导出的 HTML 中中文或公式与 Word 不完全一致？**
 库不嵌入字体文件，显示效果取决于运行环境已安装的字体。公式默认使用 STIX Two Math，字形接近 Word 的 Cambria Math，但不完全相同。

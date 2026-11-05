@@ -19,7 +19,7 @@ export interface ImageNode {
 }
 export interface MathNode {
   kind: 'math'; mathml: string; latex?: string; display: boolean;
-  /** Self-contained SVG URL when formulaOutput is image and rendering succeeds. */
+  /** Self-contained PNG or SVG data URL when formulaOutput is image and rendering succeeds. */
   src?: string;
 }
 export interface LinkNode { kind: 'link'; url: string; children: Inline[]; }

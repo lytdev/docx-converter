@@ -72,4 +72,5 @@ it('uploads PNG bytes and uses the returned fileUrl after rasterization', async 
 
 it('rejects invalid drawing format values', async () => {
   await expect(convertToHtml(fixture(), { drawingOutput: 'jpeg' as 'png' })).rejects.toThrow('drawingOutput');
+  await expect(convertToHtml(fixture(), { generatedImageOutput: 'jpeg' as 'png' })).rejects.toThrow('generatedImageOutput');
 });

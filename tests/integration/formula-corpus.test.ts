@@ -68,7 +68,7 @@ async function inspectFormula(formula: FormulaCase): Promise<string[]> {
 async function inspectLayout(formula: FormulaCase, layout: 'inline' | 'display'): Promise<string[]> {
   const errors: string[] = [];
   const display = layout === 'display';
-  const result = await convertToJson(docx(p(mathParagraph(formula, layout))));
+  const result = await convertToJson(docx(p(mathParagraph(formula, layout))), { generatedImageOutput: 'svg' });
   for (const warning of result.warnings) errors.push(`${warning.code}: ${warning.message}`);
   if (result.stats.formulas !== 1) errors.push(`stats.formulas=${result.stats.formulas}`);
 
@@ -101,7 +101,7 @@ describe('university formula corpus', () => {
   });
 
   it('falls back to text glyphs for unbundled font ranges without failing the image', async () => {
-    const result = await convertToJson(docx(p('<m:oMath><m:r><m:t>éЖ</m:t></m:r></m:oMath>')));
+    const result = await convertToJson(docx(p('<m:oMath><m:r><m:t>éЖ</m:t></m:r></m:oMath>')), { generatedImageOutput: 'svg' });
     expect(result.warnings).toEqual([]);
     const nodes: MathNode[] = [];
     collectMath(result.document, nodes);
