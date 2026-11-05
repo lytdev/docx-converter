@@ -466,6 +466,8 @@ const result = await convertToHtmlFile('demo.docx', {
 
 默认输出 `<img src="data:image/png;base64,..." data-latex="...">`，可作为独立 HTML 打开，不需要外部字体文件或 MathJax 页面脚本。需要无损缩放时可设置 `generatedImageOutput: 'svg'`，此时输出自包含 SVG。公式字形使用 STIX Two Math（与 Word OMML 默认的 Cambria Math 同为衬线数学字体，字形接近但不完全相同；Cambria Math 是专有字体，无法随 MathJax 分发）。MathJax 的动态字体数据（积分号、双线字母、拉伸括号等扩展字形）会随构建产物一起打包，因此包体积比只含基础字形时大约多 1 MB。
 
+公式图片使用公式节点标记：行内公式 class 为 `formula-item formula-image image-inline`，独立行公式 class 为 `formula-item formula-image image-block`；两种公式均使用 `data-type="formula"`。
+
 ### 原生图表与组合图形
 
 - **原生图表**：支持从 OOXML 图表缓存读取标准折线图并生成图片，保留分类、曲线、数值坐标轴及数据表；HTML 和 JSON 均可使用。`generatedImageOutput` 默认为 `'png'`，可设为 `'svg'`。不重新计算嵌入工作簿；其他图表类型、组合图、堆积图及复杂样式尚未完整支持。

@@ -34,7 +34,14 @@ test('browser worker converts, previews, exports and reopens standalone HTML', a
   const frame = page.frameLocator('#preview');
   await expect(frame.getByRole('heading', { name: '文档转换 · 能力示例', exact: true })).toBeVisible();
   await expect(frame.locator('math')).toHaveCount(0); await expect(frame.locator('img.formula-image')).toHaveCount(2); await expect(frame.locator('table')).toHaveCount(1);
-  expect(await frame.locator('img.formula-image').evaluateAll((images: HTMLImageElement[]) => images.every(image => image.src.startsWith('data:image/png;base64,') && image.hasAttribute('data-latex') && image.complete && image.naturalWidth > 0))).toBe(true);
+  expect(await frame.locator('img.formula-image').evaluateAll((images: HTMLImageElement[]) => images.every(image =>
+    image.src.startsWith('data:image/png;base64,') && image.getAttribute('data-type') === 'formula' &&
+    image.classList.contains('formula-item') && image.classList.contains('formula-image') &&
+    image.hasAttribute('data-latex') && image.complete && image.naturalWidth > 0
+  ))).toBe(true);
+  expect(await frame.locator('img.formula-image').evaluateAll((images: HTMLImageElement[]) =>
+    images.map(image => image.classList.contains('image-inline') ? 'inline' : image.classList.contains('image-block') ? 'block' : 'missing')
+  )).toEqual(['inline', 'block']);
   await expect(frame.locator('figure img')).toBeVisible();
   expect(await frame.locator('img').evaluateAll((images: HTMLImageElement[]) => images.every(img => img.complete && img.naturalWidth > 0))).toBe(true);
   await page.getByRole('tab', { name: 'HTML 源码' }).click(); await expect(page.locator('#source')).toBeVisible();

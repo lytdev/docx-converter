@@ -9,5 +9,6 @@ export async function renderMathImage(node: MathNode, context: RenderContext, fo
   if (!image) return '<span class="unsupported-content" data-type="formula">[公式图片生成失败]</span>';
   const align = image.verticalAlignEx === undefined ? 'middle' : `${image.verticalAlignEx}ex`;
   const layout = node.display ? 'display:block;margin:.6em 0;' : `vertical-align:${align};`;
-  return `<img src="${image.src}" alt="${esc(node.latex || '公式')}" class="formula-item formula-image" data-type="formula"${node.latex !== undefined ? ` data-latex="${esc(node.latex)}"` : ''} style="max-width:100%;width:${image.widthEx}ex;height:${image.heightEx}ex;${layout}">`;
+  const className = `formula-item formula-image image-${node.display ? 'block' : 'inline'}`;
+  return `<img src="${image.src}" alt="${esc(node.latex || '公式')}" class="${className}" data-type="formula"${node.latex !== undefined ? ` data-latex="${esc(node.latex)}"` : ''} style="max-width:100%;width:${image.widthEx}ex;height:${image.heightEx}ex;${layout}">`;
 }

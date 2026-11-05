@@ -10,7 +10,8 @@ export class ImageRenderer {
     this.resolver = new ImageResolver(resources, context, options);
   }
   async render(n: ImageNode, inline: boolean): Promise<string> {
-    const placeholder = () => `<span class="unsupported-content" data-type="${n.formula ? 'formula' : 'image'}"${n.path ? ` data-resource="${esc(n.path)}"` : ''}>${esc(`[${n.alt}：无可显示图片]`)}</span>`;
+    const type = n.formula ? 'formula' : 'image';
+    const placeholder = () => `<span class="unsupported-content" data-type="${type}"${n.path ? ` data-resource="${esc(n.path)}"` : ''}>${esc(`[${n.alt}：无可显示图片]`)}</span>`;
 
     const safe = await this.resolver.resolve(n);
     if (!safe) return placeholder();
@@ -19,6 +20,9 @@ export class ImageRenderer {
     if (n.height) css.height = `${Math.round(n.height * 100) / 100}px`;
     css['object-fit'] = 'contain';
     if (n.formula || inline) css['vertical-align'] = 'middle';
-    return `<img src="${esc(safe)}" alt="${esc(n.alt)}" class="${n.formula ? 'formula-item formula-image' : `image-item image-${inline ? 'inline' : 'block'}`}" data-type="${n.formula ? 'formula' : 'image'}"${n.formula && n.latex ? ` data-latex="${esc(n.latex)}"` : ''}${styleAttr(css)}>`;
+    const className = n.formula
+      ? `formula-item formula-image image-${inline ? 'inline' : 'block'}`
+      : `image-item image-${inline ? 'inline' : 'block'}`;
+    return `<img src="${esc(safe)}" alt="${esc(n.alt)}" class="${className}" data-type="${type}"${n.formula && n.latex ? ` data-latex="${esc(n.latex)}"` : ''}${styleAttr(css)}>`;
   }
 }

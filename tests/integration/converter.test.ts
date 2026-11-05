@@ -214,15 +214,23 @@ describe('DOCX conversion', () => {
   it('produces standalone PNG images and LaTeX for OMML by default', async () => {
     const formula = `<m:oMath><m:f><m:num><m:sSup><m:e>${mt('x')}</m:e><m:sup>${mt('2')}</m:sup></m:sSup></m:num><m:den><m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:deg/> <m:e>${mt('y')}</m:e></m:rad></m:den></m:f><m:m><m:mr><m:e>${mt('1')}</m:e><m:e>${mt('2')}</m:e></m:mr><m:mr><m:e>${mt('3')}</m:e><m:e>${mt('4')}</m:e></m:mr></m:m></m:oMath>`;
     const r = await convertToHtml(docx(p(text('before') + formula + text('after'))));
-    const formulas = elements(r.html, 'img').filter(e => e.getAttribute('data-type') === 'formula');
+    const formulas = elements(r.html, 'img').filter(e => e.getAttribute('class')?.includes('formula-image'));
     expect(formulas).toHaveLength(1);
     expect(formulas[0].getAttribute('src')).toMatch(/^data:image\/png;base64,/);
+    expect(formulas[0].getAttribute('class')).toBe('formula-item formula-image image-inline');
+    expect(formulas[0].getAttribute('data-type')).toBe('formula');
     const image = Buffer.from(formulas[0].getAttribute('src')!.split(',')[1], 'base64');
     expect([...image.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
     expect(r.html).not.toContain('<math');
     const latex = formulas[0].getAttribute('data-latex');
     expect(latex).toContain('\\frac'); expect(latex).toContain('\\begin{matrix}1&2\\\\3&4\\end{matrix}');
     expect(r.html.indexOf('before')).toBeLessThan(r.html.indexOf('<img')); expect(r.html.indexOf('<img')).toBeLessThan(r.html.indexOf('after'));
+  });
+  it('marks display formula images as block images', async () => {
+    const r = await convertToHtml(docx(p(`<m:oMathPara><m:oMath>${mt('x')}</m:oMath></m:oMathPara>`)), { generatedImageOutput: 'svg' });
+    const formula = elements(r.html, 'img')[0];
+    expect(formula.getAttribute('class')).toBe('formula-item formula-image image-block');
+    expect(formula.getAttribute('data-type')).toBe('formula');
   });
   it('allows explicit SVG output for generated formulas', async () => {
     const r = await convertToHtml(docx(p(`<m:oMath>${mt('x')}</m:oMath>`)), { generatedImageOutput: 'svg' });
@@ -264,7 +272,8 @@ describe('DOCX conversion', () => {
   });
   it('retains OLE resource and preview without inventing LaTeX', async () => {
     const r = await convertToHtml(docx(p(`<w:r><w:object><v:shape style="width:40pt;height:20pt"><v:imagedata r:id="preview"/></v:shape><o:OLEObject ProgID="Equation.3" r:id="ole"/></w:object></w:r>`), { rels: `<Relationship Id="preview" Type="${R}/image" Target="media/a.png"/><Relationship Id="ole" Type="${R}/oleObject" Target="embeddings/e.bin"/>`, media: { 'a.png': png }, extra: { 'word/embeddings/e.bin': new Uint8Array([1, 2]) } }));
-    expect(r.html).toContain('formula-item formula-image'); expect(r.html).not.toContain('data-latex'); expect(r.resources).toHaveLength(2); expect(r.stats.formulas).toBe(1);
+    expect(r.html).toContain('formula-item formula-image image-block');
+    expect(r.html).toContain('data-type="formula"'); expect(r.html).not.toContain('data-latex'); expect(r.resources).toHaveLength(2); expect(r.stats.formulas).toBe(1);
   });
   it('attaches reconstructed OLE LaTeX to its preview image and rejects a stale WMF', async () => {
     const mtef = hex('03 01 01 03 00 01 02 83 78 00 02 83 2B 00 02 83 30 00 00 00');
