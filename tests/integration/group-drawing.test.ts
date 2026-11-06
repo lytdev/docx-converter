@@ -35,11 +35,29 @@ it('passes generated group SVG through the configured oversized image callback',
   expect(result.html).toContain('src="https://example.com/drawing.svg"');
 });
 
-it('retains text with a diagnostic for unsupported grouped geometry', async () => {
-  const result = await convertToHtml(fixture('unsupportedShape'));
-  expect(result.warnings.some(w => w.code === 'UNSUPPORTED_GROUP_DRAWING')).toBe(true);
-  expect(result.html).toContain('养老 &amp; &lt;金融&gt;');
+it('approximates unknown grouped geometry without dropping the whole drawing', async () => {
+  const result = await convertToHtml(fixture('unsupportedShape'), { drawingOutput: 'svg' });
+  expect(result.warnings).toEqual([]);
+  expect(result.html).toContain('data:image/svg+xml;base64,');
+  expect(result.html).toContain('alt="养老 &amp; &lt;金融&gt;"');
   expect(result.warnings.some(w => w.code === 'MISSING_IMAGE')).toBe(false);
+});
+
+it('renders common arrow geometry inside grouped drawings', async () => {
+  const result = await convertToHtml(fixture('downArrow'), { drawingOutput: 'svg' });
+  expect(result.warnings).toEqual([]);
+  const src = result.html.match(/data:image\/svg\+xml;base64,([^"]+)/)?.[1];
+  if (!src) throw new Error('Missing SVG');
+  const svg = Buffer.from(src, 'base64').toString('utf8');
+  expect(svg).toContain('L75 40L0 23.2');
+});
+
+it('renders common preset geometries instead of rejecting the group', async () => {
+  for (const geometry of ['parallelogram', 'hexagon', 'chevron', 'flowChartDecision', 'star5']) {
+    const result = await convertToHtml(fixture(geometry), { drawingOutput: 'svg' });
+    expect(result.warnings, geometry).toEqual([]);
+    expect(result.html, geometry).toContain('data:image/svg+xml;base64,');
+  }
 });
 
 it('defaults to 3x PNG in both outputs without changing display dimensions', async () => {

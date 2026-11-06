@@ -21,6 +21,12 @@ function uploadName(path: string, mimeType: string): { fileSuffix: string; fileN
 export class ImageResolver {
   constructor(private readonly resources: ResourceReader, private readonly context: RenderContext, private readonly options: ConversionOptions) {}
   async resolve(n: ImageNode): Promise<string | undefined> {
+    if (n.src) {
+      const safe = safeUrl(n.src, true);
+      if (safe) return safe;
+      this.context.warn('UNSAFE_IMAGE_URL', 'JSON 图片地址不是安全的内嵌或 HTTP(S) 图片');
+      return undefined;
+    }
     const base64ImageSize = this.options.imageHandler?.base64ImageSize ?? 2048;
     if (n.generatedSvg) {
       const generatedFormat = this.options.generatedImageOutput ?? 'png';

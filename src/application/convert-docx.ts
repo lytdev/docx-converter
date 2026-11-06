@@ -1,4 +1,5 @@
 import type { ConversionOptions, ConversionResult, Diagnostic, DocxInput, Resource } from '../contracts/conversion.js';
+import type { RenderContext, ResourceReader } from '../contracts/ports.js';
 import type { DocumentModel } from '../domain/document.js';
 import { DocxPackage } from '../infrastructure/opc/docx-package.js';
 import { DocumentParser } from '../modules/document/document-parser.js';
@@ -74,4 +75,20 @@ export async function convertToJson(input: DocxInput, options: ConversionOptions
     .map(({ path, mimeType, bytes }) => ({ path, mimeType, size: bytes.byteLength }));
   session.progress({ stage: 'complete' });
   return { document, warnings: session.warnings, resources, stats: parsed.stats };
+}
+
+const emptyResources: ResourceReader = {
+  bytes: () => undefined,
+  mime: () => 'application/octet-stream',
+};
+
+/** Restore HTML directly from a serialized DocumentModel without the original DOCX package. */
+export async function renderJsonToHtml(document: DocumentModel, options: ConversionOptions = {}): Promise<string> {
+  const context: RenderContext = {
+    checkAbort: () => {
+      if (options.signal?.aborted) throw new DocxError('ABORTED', '转换已取消');
+    },
+    warn: () => {},
+  };
+  return new HtmlRenderer(emptyResources, context, options).render(document);
 }

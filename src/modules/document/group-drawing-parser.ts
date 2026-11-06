@@ -1,6 +1,7 @@
 import { attr, child, children, descendants, NS, type X } from '../../infrastructure/xml/dom.js';
 import { esc } from '../../shared/markup.js';
 import type { ImageNode } from '../../domain/document.js';
+import { presetGeometry } from './preset-geometry.js';
 
 export const GROUP_NS = 'http://schemas.microsoft.com/office/word/2010/wordprocessingGroup';
 const SHAPE_NS = 'http://schemas.microsoft.com/office/word/2010/wordprocessingShape';
@@ -41,7 +42,7 @@ export function parseGroupDrawing(root: X, width: number, height: number): Image
       }
       if (el.namespaceURI !== SHAPE_NS || el.localName !== 'wsp') throw new Error('Unsupported shape');
       const pr = child(el, 'spPr', SHAPE_NS), xf = a(pr, 'xfrm'), geom = a(pr, 'prstGeom')?.getAttribute('prst');
-      if (!['roundRect', 'rect', 'ellipse', 'straightConnector1', 'line'].includes(geom ?? '') || n(xf, 'rot')) throw new Error('Unsupported geometry');
+      if (!geom) throw new Error('Missing geometry');
       const x = px(a(xf, 'off'), 'x'), y = px(a(xf, 'off'), 'y');
       const w = px(a(xf, 'ext'), 'cx'), h = px(a(xf, 'ext'), 'cy');
       if (w < 0 || h < 0) throw new Error('Invalid shape size');
@@ -61,8 +62,7 @@ export function parseGroupDrawing(root: X, width: number, height: number): Image
         };
         return `<g transform="translate(${x} ${y})"><path d="M${x1} ${y1}L${x2} ${y2}" fill="none" ${style}/>${arrow('headEnd', x1, y1, x2, y2)}${arrow('tailEnd', x2, y2, x1, y1)}</g>`;
       }
-      let shape = geom === 'ellipse' ? `<ellipse cx="${w / 2}" cy="${h / 2}" rx="${w / 2}" ry="${h / 2}"` : `<rect width="${w}" height="${h}" rx="${geom === 'roundRect' ? Math.min(w, h) / 6 : 0}"`;
-      shape += ` fill="${fill}" ${style}/>`;
+      const shape = presetGeometry(geom, w, h, `fill="${fill}" ${style}`);
       const body = child(el, 'bodyPr', SHAPE_NS);
       const box = descendants(el, 'txbxContent')[0];
       const lines: { text: string; size: number; align: string }[] = [];
@@ -90,7 +90,9 @@ export function parseGroupDrawing(root: X, width: number, height: number): Image
         const center = l.align === 'center', end = l.align === 'right';
         return `<text x="${center ? w * scaleX / 2 : end ? w * scaleX - right : left}" y="${baseline - l.size * .25}" font-size="${l.size}" text-anchor="${center ? 'middle' : end ? 'end' : 'start'}">${esc(l.text)}</text>`;
       }).join('');
-      return `<g transform="translate(${x} ${y})">${shape}<g transform="scale(${1 / scaleX} ${1 / scaleY})" font-family="SimSun,serif" fill="#000000">${text}</g></g>`;
+      const rotation = n(xf, 'rot') / 60000;
+      const painted = `<g transform="translate(${x} ${y})">${rotation ? `<g transform="rotate(${rotation} ${w / 2} ${h / 2})">${shape}</g>` : shape}<g transform="scale(${1 / scaleX} ${1 / scaleY})" font-family="SimSun,serif" fill="#000000">${text}</g></g>`;
+      return painted;
     }
     const content = render(root, 1, 1);
     const generatedSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width + 4}" height="${height + 4}" viewBox="-2 -2 ${width + 4} ${height + 4}">${content}</svg>`;

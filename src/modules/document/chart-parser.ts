@@ -10,7 +10,7 @@ function points(el: X | undefined): Map<number, string> {
   return new Map(descendants(el, 'pt', CHART_NS).map(pt => [Number(pt.getAttribute('idx')), first(pt, 'v')?.textContent ?? '']));
 }
 
-/** Render cached standard line charts. Unsupported chart families remain explicit placeholders. */
+/** Render cached standard line and vertical clustered bar charts. */
 export function parseChart(ref: X, context: ParseContext, width = 820, height = 500): ImageNode | undefined {
   const id = ref.getAttributeNS(NS.r, 'id');
   const relation = id ? context.source.relationships(context.source.main).get(id) : undefined;
@@ -20,10 +20,14 @@ export function parseChart(ref: X, context: ParseContext, width = 820, height = 
   const root = context.source.xml(path)?.documentElement;
   if (!root) return;
   const line = first(root, 'lineChart');
+  const bar = line ? undefined : first(root, 'barChart');
+  const chart = line ?? bar;
   const plot = first(root, 'plotArea');
-  if (!line || !plot || (value(line, 'grouping') ?? 'standard') !== 'standard') return;
-  if (Array.from(plot.childNodes).some(n => n.nodeType === 1 && /Chart$/.test(n.localName ?? '') && n.localName !== 'lineChart')) return;
-  const series = descendants(line, 'ser', CHART_NS).map((ser, i) => ({
+  if (!chart || !plot) return;
+  if (line && (value(line, 'grouping') ?? 'standard') !== 'standard') return;
+  if (bar && ((value(bar, 'barDir') ?? 'col') !== 'col' || !['clustered', 'standard'].includes(value(bar, 'grouping') ?? 'clustered'))) return;
+  if (Array.from(plot.childNodes).some(n => n.nodeType === 1 && /Chart$/.test(n.localName ?? '') && n.localName !== chart.localName)) return;
+  const series = descendants(chart, 'ser', CHART_NS).map((ser, i) => ({
     name: first(child(ser, 'tx', CHART_NS), 'v')?.textContent ?? `系列 ${i + 1}`,
     values: points(child(ser, 'val', CHART_NS)), categories: points(child(ser, 'cat', CHART_NS)),
     color: descendants(child(ser, 'spPr', CHART_NS), 'srgbClr', NS.a)[0]?.getAttribute('val') ?? ['4874CB', 'EE822F', '75A34A'][i % 3],
@@ -49,18 +53,29 @@ export function parseChart(ref: X, context: ParseContext, width = 820, height = 
   for (let n = Math.ceil(min / step - 1e-8) * step, ticks = 0; n <= max + 1e-8 && ticks < 30; n += step, ticks++) {
     svg += `<path d="M${left} ${y(n)}H${right}" stroke="#d9d9d9"/>` + text(left - 12, y(n) + 5, format(n, percent), 'text-anchor="end"');
   }
-  const title = descendants(first(axis, 'title'), 't', NS.a).map(n => n.textContent ?? '').join('');
-  if (title) svg += text(80, (top + bottom) / 2, title, `text-anchor="middle" transform="rotate(-90 80 ${(top + bottom) / 2})"`);
+  const chartTitle = descendants(first(root, 'title'), 't', NS.a).map(n => n.textContent ?? '').join('');
+  const axisTitle = descendants(first(axis, 'title'), 't', NS.a).map(n => n.textContent ?? '').join('');
+  if (axisTitle) svg += text(80, (top + bottom) / 2, axisTitle, `text-anchor="middle" transform="rotate(-90 80 ${(top + bottom) / 2})"`);
   svg += `<defs><clipPath id="plot"><rect x="${left}" y="${top}" width="${right-left}" height="${bottom-top}"/></clipPath></defs>`;
   series.forEach((s, row) => {
     const color = /^[0-9a-f]{6}$/i.test(s.color) ? `#${s.color}` : '#4874CB';
-    let d = '', connected = false;
-    for (let i = 0; i < count; i++) {
-      const raw = s.values.get(i), n = Number(raw);
-      if (raw == null || !raw.trim() || !Number.isFinite(n)) { connected = false; continue; }
-      d += `${connected ? 'L' : 'M'}${x(i)} ${y(n)} `; connected = true;
+    if (line) {
+      let d = '', connected = false;
+      for (let i = 0; i < count; i++) {
+        const raw = s.values.get(i), n = Number(raw);
+        if (raw == null || !raw.trim() || !Number.isFinite(n)) { connected = false; continue; }
+        d += `${connected ? 'L' : 'M'}${x(i)} ${y(n)} `; connected = true;
+      }
+      svg += `<path d="${d}" fill="none" stroke="${color}" stroke-width="3.5" clip-path="url(#plot)"/>`;
+    } else {
+      const span = (right - left) / count, group = span * .7, barWidth = group / series.length, zero = y(0);
+      for (let i = 0; i < count; i++) {
+        const raw = s.values.get(i), n = Number(raw);
+        if (raw == null || !raw.trim() || !Number.isFinite(n)) continue;
+        const valueY = y(n);
+        svg += `<rect x="${left + i * span + (span - group) / 2 + row * barWidth}" y="${Math.min(zero, valueY)}" width="${Math.max(1, barWidth - 2)}" height="${Math.max(1, Math.abs(zero - valueY))}" fill="${color}" clip-path="url(#plot)"/>`;
+      }
     }
-    svg += `<path d="${d}" fill="none" stroke="${color}" stroke-width="3.5" clip-path="url(#plot)"/>`;
     const labelY = bottom + (row + 1) * 28 + 20;
     if (table) {
       svg += `<rect x="12" y="${labelY - 20}" width="183" height="28" fill="none" stroke="#d9d9d9"/>` + text(52, labelY, s.name);
@@ -77,5 +92,15 @@ export function parseChart(ref: X, context: ParseContext, width = 820, height = 
   }
   svg += '</g></svg>';
   context.stats.images++;
-  return { kind: 'image', path, alt: title || '折线图', formula: false, width, height, css: {}, generatedSvg: svg };
+  return {
+    kind: 'image',
+    path,
+    alt: chartTitle || (bar ? '柱状图' : '折线图'),
+    formula: false,
+    width,
+    height,
+    css: {},
+    generatedSvg: svg,
+    generatedKind: 'chart',
+  };
 }

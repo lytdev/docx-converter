@@ -78,6 +78,11 @@ export class Styles {
     }
     return value;
   }
+  themeColor(name?: string): string | undefined {
+    if (!name) return;
+    const aliases: Record<string, string> = { tx1: 'dk1', tx2: 'dk2', bg1: 'lt1', bg2: 'lt2' };
+    return this.themeColors.get(aliases[name] ?? name);
+  }
   readRun(pr?: X): RunStyle {
     const out: RunStyle = {};
     const fonts = child(pr, 'rFonts');

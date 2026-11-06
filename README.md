@@ -195,6 +195,17 @@ interface JsonConversionResult {
 
 `formulaOutput: 'image'`（默认）时，OMML 公式节点同时包含 MathML、可提取的 LaTeX 和自包含 PNG `src`；设置 `generatedImageOutput: 'svg'` 可改为 SVG，设为 `formulaOutput: 'mathml'` 时不生成图片。`output` 和 `title` 只影响 HTML 包装，对 JSON 文档树没有影响。
 
+JSON 文档树可以直接还原为 HTML，不需要原 DOCX 或资源包：
+
+```ts
+import { convertToJson, renderJsonToHtml } from '@agilehub/docx-converter';
+
+const { document } = await convertToJson(file, { output: 'fragment' });
+const html = await renderJsonToHtml(document, { output: 'fragment' });
+```
+
+还原器优先使用 JSON 图片和公式节点中的 `src` 与 `attributes`，因此与生成 JSON 时相同选项下的原始 HTML 保持一致。
+
 `convertToHtml` 与 `convertToJson` 接受相同的输入和选项，但**是两次独立转换**；如果同时调用，上传回调也会各执行一次。
 
 ### PDF
@@ -470,10 +481,11 @@ const result = await convertToHtmlFile('demo.docx', {
 
 公式图片使用公式节点标记：行内公式 class 为 `formula-item formula-image image-inline`，独立行公式 class 为 `formula-item formula-image image-block`；两种公式均使用 `data-type="formula"`。
 
-### 原生图表与组合图形
+### 原生图表、组合图形与 SmartArt
 
-- **原生图表**：支持从 OOXML 图表缓存读取标准折线图并生成图片，保留分类、曲线、数值坐标轴及数据表；HTML 和 JSON 均可使用。`generatedImageOutput` 默认为 `'png'`，可设为 `'svg'`。不重新计算嵌入工作簿；其他图表类型、组合图、堆积图及复杂样式尚未完整支持。
-- **Word 组合图形**：支持 DrawingML 嵌套组合中的矩形、圆角矩形、椭圆、直线及三角箭头，并把文本框文字与图形一起生成图片。`drawingOutput` 默认继承 `generatedImageOutput`（即 PNG），可单独设为 `'svg'`：
+- **原生图表**：支持从 OOXML 图表缓存读取标准折线图和纵向簇状柱形图并生成图片，保留分类、数值坐标轴和缓存数据；HTML 和 JSON 均可使用。`generatedImageOutput` 默认为 `'png'`，可设为 `'svg'`。不重新计算嵌入工作簿；堆积图、百分比堆积图、横向条形图及复杂组合图尚未完整支持。
+- **Word 组合图形**：支持 DrawingML 嵌套组合中的矩形、圆角矩形、椭圆、直线、向下箭头及三角连接箭头，并把文本框文字与图形一起生成图片。`drawingOutput` 默认继承 `generatedImageOutput`（即 PNG），可单独设为 `'svg'`：
+- **SmartArt**：读取 Word 缓存的 `diagrams/drawing1.xml` 最终形状、旋转、文本和配色信息并生成图片，不尝试重新执行 SmartArt 布局引擎。
 
 ```ts
 await convertToHtml(file);                        // 默认 PNG
@@ -521,7 +533,7 @@ try {
 | 图片 | 内嵌常规位图、EMF → PNG、尺寸、alt、Base64、自定义地址、图注 | 浮动图片按正文顺序显示；裁剪/旋转未完整实现 |
 | OMML 公式 | 默认自包含 PNG + `data-latex`；可选 SVG 或 MathML；分式、根式、上下标、矩阵、方程组、重音、上下限等 | 不支持的结构保留可解析内容并警告，省略不可靠的 LaTeX |
 | MathType / OLE | 保留原始对象和预览图；从 MTEF 3/5 保守重建 LaTeX | 模板支持有限；无法准确重建时省略 `data-latex` |
-| 图形 / 文本框 | 保留可用位图回退；文本框内容按正文展开 | 组合图形之外的 DrawingML/VML 几何图形、SmartArt 暂未转换为 SVG |
+| 图形 / SmartArt | 组合图形、常见箭头、缓存 SmartArt 形状与文字；保留可用位图回退 | 复杂 3D、艺术效果和未生成预渲染绘图部件的 SmartArt 仍需占位 |
 | 图注 / 表注 | 相邻“图 + 数字”→ `figure/figcaption`；“表 + 数字”→ `caption` | 规则匹配可能需要人工核对 |
 | 修订与域 | 接受后的正文内容、文档保存的域结果 | 不重新计算域，不展示完整修订历史 |
 
