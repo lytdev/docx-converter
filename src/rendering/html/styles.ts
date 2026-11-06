@@ -1,7 +1,7 @@
 import type { Css, RunStyle } from '../../domain/document.js';
 import { esc } from '../../shared/markup.js';
 import { pt } from '../../shared/units.js';
-const cssText = (css: Css) => Object.entries(css).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => `${k}:${v}`).join(';');
+export const cssText = (css: Css) => Object.entries(css).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => `${k}:${v}`).join(';');
 export const styleAttr = (css: Css) => Object.keys(css).length ? ` style="${esc(cssText(css))}"` : '';
 
 const fontName = (s: string) => `"${s.replace(/["\\;{}<>\r\n]/g, '')}"`;

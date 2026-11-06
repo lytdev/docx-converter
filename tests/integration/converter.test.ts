@@ -25,6 +25,9 @@ describe('DOCX conversion', () => {
     expect(math.mathml).toContain('<mfrac>');
     expect(math.latex).toContain('\\frac');
     expect(math.src).toMatch(/^data:image\/png;base64,/);
+    const formulaHtml = elements(html.html, 'img').find(element => element.getAttribute('data-type') === 'formula')!;
+    for (const [name, value] of Object.entries(math.attributes ?? {}))
+      expect(formulaHtml.getAttribute(name)).toBe(value);
     const table = json.document.blocks[1];
     if (table.kind !== 'table') throw new Error('Expected table');
     expect(table.rows[0].cells[0].blocks[0]).toMatchObject({ kind: 'paragraph', children: [{ kind: 'text', text: 'cell', style: {} }] });
@@ -44,6 +47,12 @@ describe('DOCX conversion', () => {
     const paragraph = result.document.blocks[0];
     if (paragraph.kind !== 'paragraph' || paragraph.children[0].kind !== 'image') throw new Error('Expected image');
     expect(paragraph.children[0].src).toBe('/uploads/photo.png');
+    expect(paragraph.children[0].attributes).toMatchObject({
+      src: '/uploads/photo.png',
+      alt: '测试图片',
+      class: 'image-item image-block',
+      'data-type': 'image',
+    });
     expect(calls).toEqual([`${png.length}:png:photo.png`]);
     expect(result.resources).toEqual([{ path: 'word/media/photo.png', mimeType: 'image/png', size: png.length }]);
     expect(stages).toEqual(['reading', 'extracting', 'parsing', 'parsing', 'rendering', 'complete']);
@@ -59,6 +68,7 @@ describe('DOCX conversion', () => {
     if (block.kind !== 'paragraph' || block.children[0].kind !== 'math') throw new Error('Expected math');
     expect(block.children[0].mathml).toContain('<math');
     expect(block.children[0].src).toBeUndefined();
+    expect(block.children[0].attributes).toMatchObject({ class: 'formula-item', 'data-type': 'formula', 'data-latex': 'x' });
   });
   it('preserves text, spaces, escaped markup and mixed content order', async () => {
     const r = await convertToHtml(docx(p(text('A &amp; &lt;B&gt;  ') + '<w:r><w:tab/><w:t>C</w:t><w:br/><w:t>D</w:t></w:r>')));
@@ -125,9 +135,15 @@ describe('DOCX conversion', () => {
     expect(elements(r.html, 'ul')).toHaveLength(1); expect(elements(r.html, 'li')).toHaveLength(4);
   });
   it('embeds image bytes, dimensions and pure text captions; exports original resource', async () => {
-    const r = await convertToHtml(docx(p(image()) + p(text('图 1 实验示意图')), { rels: `<Relationship Id="image1" Type="${R}/image" Target="media/a.png"/>`, media: { 'a.png': png } }));
+    const input = docx(p(image()) + p(text('图 1 实验示意图')), { rels: `<Relationship Id="image1" Type="${R}/image" Target="media/a.png"/>`, media: { 'a.png': png } });
+    const r = await convertToHtml(input);
     expect(elements(r.html, 'figure')).toHaveLength(1); expect(elements(r.html, 'img')[0].getAttribute('alt')).toBe('图 1 实验示意图');
     expect(r.html).toContain('data:image/png;base64,'); expect(r.html).toContain('width:100px;height:50px'); expect(r.resources[0].bytes).toEqual(png);
+    const json = await convertToJson(input);
+    const paragraph = json.document.blocks[0];
+    if (paragraph.kind !== 'paragraph' || paragraph.children[0].kind !== 'image') throw new Error('Expected image');
+    expect(paragraph.children[0].alt).toBe('图 1 实验示意图');
+    expect(paragraph.children[0].attributes?.alt).toBe('图 1 实验示意图');
   });
   it('moves adjacent table titles into caption', async () => {
     const r = await convertToHtml(docx(p(text('表 2 测试')) + `<w:tbl><w:tr><w:tc>${p(text('data'))}</w:tc></w:tr></w:tbl>`));
@@ -183,6 +199,14 @@ describe('DOCX conversion', () => {
   it('reports unsupported images and supports explicit conversion adapters', async () => {
     const input = docx(p(image()), { rels: `<Relationship Id="image1" Type="${R}/image" Target="media/a.wmf"/>`, media: { 'a.wmf': new Uint8Array([1, 2, 3]) } });
     const fallback = await convertToHtml(input); expect(fallback.resources).toHaveLength(1); expect(fallback.warnings.some(w => w.code === 'UNSUPPORTED_IMAGE')).toBe(true);
+    const fallbackJson = await convertToJson(input);
+    const fallbackBlock = fallbackJson.document.blocks[0];
+    if (fallbackBlock.kind !== 'paragraph' || fallbackBlock.children[0].kind !== 'image') throw new Error('Expected image');
+    expect(fallbackBlock.children[0].attributes).toEqual({
+      class: 'unsupported-content',
+      'data-type': 'image',
+      'data-resource': 'word/media/a.wmf',
+    });
     const adapted = await convertToHtml(input, { imageHandler: { convert: async () => ({ bytes: png, mimeType: 'image/png' }) } });
     expect(adapted.html).toContain('<img'); expect(adapted.resources[0].path).toBe('word/media/a.wmf');
   });

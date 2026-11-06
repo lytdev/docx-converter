@@ -63,7 +63,7 @@ File / Blob / ArrayBuffer / Uint8Array
 
 解析器使用 namespace URI + localName，避免依赖 XML 前缀。主文档和辅助部件通过 OPC relationships 定位。包内路径归一化并拒绝越界，不自动访问外部关系。`@xmldom/xmldom` 提供浏览器、Worker、Node 一致的 XML API。
 
-每次 `convertToHtml` 或 `convertToJson` 创建独立的包缓存、解析上下文、会话和输出渲染器。两者通过同一个 `parseDocx` 流程取得 `DocumentModel`，然后分别投影为 HTML 或可序列化的 JSON 树。`ConversionSession` 负责取消、进度及诊断；`ParseContext` 负责本次解析的样式、编号、统计和资源集合；列表计数器属于本次 HTML 渲染器。没有全局可变转换状态，不跨请求共享缓存。
+每次 `convertToHtml` 或 `convertToJson` 创建独立的包缓存、解析上下文、会话和输出渲染器。两者通过同一个 `parseDocx` 流程取得 `DocumentModel`，然后分别投影为 HTML 或可序列化的 JSON 树。图片与公式的 JSON 节点除语义字段外还投影 `attributes`，保证 `src`、`alt`、`class`、`data-type`、`data-latex` 和 `style` 与 HTML 元素一致。`ConversionSession` 负责取消、进度及诊断；`ParseContext` 负责本次解析的样式、编号、统计和资源集合；列表计数器属于本次 HTML 渲染器。没有全局可变转换状态，不跨请求共享缓存。
 
 `DocumentParser` 通过回调连接“表格中解析块”和“文本框中解析段落”的递归关系，子解析器无需反向引用主解析器。渲染器仅要求 `ResourceReader` 提供资源字节和 MIME，不访问 XML、不持有 `DocumentParser`。因此可以使用手写模型和内存资源直接测试渲染。
 

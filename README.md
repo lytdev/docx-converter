@@ -191,6 +191,8 @@ interface JsonConversionResult {
 
 `result.document.blocks` 是按原文顺序排列的段落与表格；表格单元格内仍然是 `blocks`，段落内的 `children` 包含文字、图片、公式、链接等节点。JSON 结果的 `resources` 只包含资源的 `path`、`mimeType`、`size`，因此整个返回值可以直接序列化；需要原始二进制时请使用 `convertToHtml` 的 `resources`。
 
+图片与公式节点同时包含语义字段和 `attributes`。`attributes` 与对应 HTML 元素的 `src`、`alt`、`class`、`data-type`、`data-latex`、`style` 保持一致，便于调用方在不重复推导 HTML 属性的情况下使用 JSON。
+
 `formulaOutput: 'image'`（默认）时，OMML 公式节点同时包含 MathML、可提取的 LaTeX 和自包含 PNG `src`；设置 `generatedImageOutput: 'svg'` 可改为 SVG，设为 `formulaOutput: 'mathml'` 时不生成图片。`output` 和 `title` 只影响 HTML 包装，对 JSON 文档树没有影响。
 
 `convertToHtml` 与 `convertToJson` 接受相同的输入和选项，但**是两次独立转换**；如果同时调用，上传回调也会各执行一次。

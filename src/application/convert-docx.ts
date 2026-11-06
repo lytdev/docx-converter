@@ -8,7 +8,7 @@ import { ConversionSession } from './conversion-session.js';
 import { resolveLimits } from './limits.js';
 import { readInput } from './read-input.js';
 import { DocxError } from '../contracts/errors.js';
-export type { DocumentModel, Block, Inline, Paragraph, Table, Cell, Row, TextNode, ImageNode, MathNode, LinkNode, RunStyle, ParaStyle, Css } from '../domain/document.js';
+export type { DocumentModel, Block, Inline, Paragraph, Table, Cell, Row, TextNode, ImageNode, MathNode, LinkNode, RunStyle, ParaStyle, Css, HtmlAttributes } from '../domain/document.js';
 
 /** The JSON result contains only serializable values; resources report metadata, not binary bytes. */
 export interface JsonConversionResult {

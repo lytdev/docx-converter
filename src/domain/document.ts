@@ -1,4 +1,5 @@
 export type Css = Record<string, string>;
+export type HtmlAttributes = Record<string, string>;
 export interface RunStyle {
   latin?: string; eastAsia?: string; size?: number; color?: string;
   bold?: boolean; italic?: boolean; underline?: boolean; strike?: boolean;
@@ -16,11 +17,15 @@ export interface ImageNode {
   /** SVG constructed from supported chart data by the parser. */
   generatedSvg?: string;
   generatedKind?: 'drawing' | 'chart';
+  /** HTML element attributes projected into JSON for renderer parity. */
+  attributes?: HtmlAttributes;
 }
 export interface MathNode {
   kind: 'math'; mathml: string; latex?: string; display: boolean;
   /** Self-contained PNG or SVG data URL when formulaOutput is image and rendering succeeds. */
   src?: string;
+  /** HTML element attributes projected into JSON for renderer parity. */
+  attributes?: HtmlAttributes;
 }
 export interface LinkNode { kind: 'link'; url: string; children: Inline[]; }
 export type Inline = TextNode | ImageNode | MathNode | LinkNode | { kind: 'break' } | { kind: 'anchor'; id: string } | { kind: 'unsupported'; label: string };
