@@ -1,12 +1,13 @@
 {
   "name": "@agilehub/docx-converter",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "TypeScript DOCX to HTML JSON And Pdf converter with fonts, tables, images and OMML math",
   "type": "module",
   "author": "lytdev <lytdev@outlook.com>",
   "files": [
     "dist",
     "docs/architecture.md",
+    "docs/json-tiptap-integration.md",
     "README.md",
     "CONTRIBUTING.md",
     "LICENSE"
