@@ -607,4 +607,4 @@ try {
 
 `public/sample.docx` 是人工构造的可分发示例；可执行 `node scripts/generate-sample.ts` 在 Node 24 下重新生成。Windows 沙箱若限制默认临时目录，可把 `TEMP` / `TMP` 指向项目下的 `.tmp` 后再运行测试。
 
-更多设计说明见 [架构文档](docs/architecture.md)，JSON 到 Tiptap 的字段映射和接入示例见 [Tiptap 接入指南](docs/json-tiptap-integration.md)，修改约定和工程检查见 [开发指南](CONTRIBUTING.md)。
+更多设计说明见 [架构文档](docs/architecture.md)，JSON 到 Tiptap 的字段映射和接入示例见 [Tiptap 接入指南](docs/json-tiptap-integration.md)，基于全量测试文档的 JSON 类型样例见 [全量转换 JSON 样例](docs/full-test-json-samples.md)，修改约定和工程检查见 [开发指南](CONTRIBUTING.md)。
