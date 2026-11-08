@@ -12,7 +12,7 @@ src/
 ├── node.ts                      Node 文件路径公共 API：convertToHtmlFile / convertToJsonFile
 ├── browser-metafile.ts          浏览器 WMF/EMF 图片适配器公共 API
 ├── contracts/                   转换参数、结果、错误和内部端口
-├── domain/document.ts           HTML / JSON 共用的段落、表格、文本、图片、公式模型
+├── domain/document.ts           内部 DocumentModel、文档元数据与 HTML 渲染类型
 ├── application/                 转换流程、单次会话、输入归一化、限制
 ├── infrastructure/
 │   ├── archive/                 ZIP 解压和体积约束
@@ -25,7 +25,7 @@ src/
 │   ├── math/                    OMML → 内部 MathML / LaTeX；OLE CFB → MTEF → LaTeX；WMF 一致性检查
 │   └── images/                  位图识别、EMF 转 PNG、转换策略、资源地址解析
 ├── rendering/html/              HTML、CSS、列表、图注表注、图片展示
-├── rendering/json/              文档模型的 JSON 安全投影与图片地址解析
+├── rendering/json/              HTML → JSON 元素树、meta 提取与 JSON → HTML 序列化
 ├── rendering/math-image-source.ts HTML / JSON 共用的 OMML PNG/SVG 数据源
 ├── adapters/
 │   ├── browser/                  WMF/EMF → PNG 图片适配器
@@ -46,7 +46,7 @@ tests/
 scripts/                         架构检查、示例文档生成
 ```
 
-`contracts/conversion.ts` 是公开转换参数和 HTML 结果 DTO；JSON 结果及文档模型类型也从包主入口导出。`contracts/ports.ts` 是内部协作接口，不作为插件 API 导出。`domain` 包含 CSS 属性和受控 MathML，是 HTML 与 JSON 共用、保留当前转换能力的文档模型，不宣称为完全与格式无关的通用文档模型。`shared` 仅接收多个模块确实共用且不带状态的函数。
+`contracts/conversion.ts` 是公开转换参数和 HTML 结果 DTO；JSON 元素类型、文档元数据类型和内部文档模型类型从包主入口导出。`contracts/ports.ts` 是内部协作接口，不作为插件 API 导出。`domain` 包含 CSS 属性、受控 MathML 和页面/主题元数据，是 HTML 渲染使用的内部文档模型；`rendering/json` 对外提供独立的 `HtmlJsonNode` 树，不宣称为完全与格式无关的通用文档模型。`shared` 仅接收多个模块确实共用且不带状态的函数。
 
 ## 转换链路与状态归属
 
@@ -55,11 +55,12 @@ File / Blob / ArrayBuffer / Uint8Array
   → application/convert-docx.ts  唯一转换组装点，创建 ConversionSession
   → archive → DocxPackage      解压限制 → OPC 关系、XML 缓存
   → DocumentParser             协调段落 / 行内 / 绘图 / 表格解析
-  → ParsedDocument             内容模型、统计、被引用资源路径
-  → HtmlRenderer               消费 DocumentModel、ResourceReader、RenderContext
-  → JsonRenderer               解析 HtmlRenderer 输出并生成 meta / elements
-  → ImageResolver              images.convert → 按大小选择 processLargeImage / resolve / Base64
-  → ConversionResult / JsonConversionResult
+  → ParsedDocument             内容模型、文档元数据、统计、被引用资源路径
+  → HtmlRenderer               消费 DocumentModel / metadata / ResourceReader / RenderContext
+  → ImageResolver              images.convert → processLargeImage / resolve / Base64
+  → ConversionResult           完整 HTML、诊断、资源和统计
+  → JsonRenderer               解析本次 HTML 输出
+  → JsonConversionResult       { meta, elements }
 ```
 
 解析器使用 namespace URI + localName，避免依赖 XML 前缀。主文档和辅助部件通过 OPC relationships 定位。包内路径归一化并拒绝越界，不自动访问外部关系。`@xmldom/xmldom` 提供浏览器、Worker、Node 一致的 XML API。
@@ -157,4 +158,4 @@ View 在预览标签页可见时挂载新的 sandbox iframe；源码标签页下
 
 字体与样式值、标题规则、表格结构、公式 PNG/SVG/MathML/LaTeX、资源保存通过集成测试验证。`tests/fixtures/university-formulas.ts` 的 300 多个大学数学/物理公式会逐条转换：断言无诊断、LaTeX 可重建、SVG 结构有效；浏览器验收再检查默认 PNG、显式 SVG、所有图片可加载且字形不超出 viewBox。模块测试覆盖独立渲染、会话隔离和 Worker 清理；浏览器验收覆盖 Worker、预览、HTML 下载、重新打开、普通 script 调用、小屏布局和旧请求覆盖保护。现有 Java demo 仅用于本地对照检查，不纳入 npm 包。
 
-`npm run check` 运行依赖约束、四组 TypeScript 校验及 Vitest；`npm run build` 也会校验架构和类型。完整验收执行 `npm run verify`。新增功能的文件归属、检查命令与提交范围见 [贡献指南](../CONTRIBUTING.md)。
+`npm run check` 运行依赖约束、四组 TypeScript 校验及 Vitest；`npm run build` 也会校验架构和类型。`npm run check:html-json -- input.docx report.json` 使用真实 DOCX 校验 `meta`、HTML/JSON 元素树以及 JSON 还原 HTML 的一致性，比较时忽略自动生成的 `id`。完整验收执行 `npm run verify`。新增功能的文件归属、检查命令与提交范围见 [贡献指南](../CONTRIBUTING.md)。

@@ -2,6 +2,8 @@
 
 `convertToJson` 现在先调用 `convertToHtml`，再把转换后的 HTML 投影为 JSON 元素树。JSON 不再维护另一套段落、表格和图片语义模型，因此同一份转换结果可以直接按 HTML 标签映射到 Tiptap 或其他编辑器。
 
+完整且可直接解析的 JSON 示例见 [full-test-json-samples.md](full-test-json-samples.md)。
+
 ## 1. 返回结构
 
 ```ts
@@ -89,7 +91,7 @@ interface HtmlJsonNode {
     "height": "1.062ex"
   },
   "src": "data:image/svg+xml;base64,...",
-  "alt": "x",
+  "alt": "图片说明",
   "attribute": {
     "data-type": "formula",
     "data-latex": "x"
@@ -223,10 +225,36 @@ const html = await renderJsonToHtml(result, { output: 'fragment' });
 
 没有子元素时使用 `text` 作为文本内容。JSON 中自动生成的 UUID 也会写成 `id`。
 
-## 8. 注意事项
+## 8. HTML / JSON 一致性校验
+
+`convertToJson` 直接消费本次 `convertToHtml` 的输出，因此两边共享同一份文档结构、文本、class、style、标准属性和扩展属性。
+
+需要比较 `convertToHtml` 与 JSON 还原后的 HTML 时：
+
+1. 使用相同的 DOCX 和相同转换选项。
+2. 忽略自动生成的 `id`。JSON 节点始终需要 `id`，但源 HTML 中不一定存在对应的 `id`。
+3. 比较标签层级、文本、class 数组、style 对象、标准属性和 `attribute`，不要按序列化后的属性顺序或 HTML 字符串直接比较。
+
+仓库提供了一致性校验脚本：
+
+```sh
+npm run check:html-json -- input.docx report.json
+```
+
+报告包含：
+
+- `metaMatch`：HTML 的 `data-docx-meta` 与 JSON `meta`
+- `structureMatch`：原始 HTML DOM 与 JSON `elements`
+- `restoredMatch`：原始 HTML DOM 与 `renderJsonToHtml` 结果
+- `differences`：最多列出 100 个具体节点差异
+
+比较时固定忽略 `id`，报告中会明确记录 `"ignoredAttributes": ["id"]`。
+
+## 9. 注意事项
 
 - `convertToJson` 内部只执行一次 HTML 转换，图片上传和公式生成回调不会因为二次解析重复执行。
 - `output` 和 `title` 影响 HTML 包装；JSON 始终只提取正文元素。
 - JSON 只保留文档元数据和元素树；警告、资源和统计请使用 `convertToHtml` 获取。
 - HTML 到 JSON 的转换不保留 text node 的独立顺序信息，因此混合内容应以 `children` 中可映射的元素为主。
+- 分别调用 `convertToHtml` 和 `convertToJson` 时，如果 `imageHandler` 返回外部 URL，应确保两次调用得到相同 URL 或只比较同一次 JSON 的还原结果。
 - 如果业务只依赖旧版 `DocumentModel`，需要显式保留旧版转换逻辑或迁移到新的 `HtmlJsonNode` 结构。
