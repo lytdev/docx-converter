@@ -6,7 +6,7 @@
 
 | 变更 | 主要位置 | 验证重点 |
 | --- | --- | --- |
-| 对外选项 / 返回字段 | src/contracts/conversion.ts、src/index.ts | 类型兼容、默认值、README 使用示例 |
+| 对外选项 / 返回字段 | src/contracts/conversion.ts、src/index.ts | 类型兼容、默认值、README 参数说明 |
 | 转换阶段 / 资源限制 | src/application | 错误码、取消、阶段事件、限制生效 |
 | ZIP / 包关系 / XML | src/infrastructure | 越界关系、损坏输入、解压限制、XML 约束 |
 | 段落 / 表格 / 绘图 | src/modules/document | 最小 OOXML fixture 和最终 HTML 结构 |
@@ -42,6 +42,6 @@ Windows 受限环境可以在项目内创建 `.tmp` 并设置 `TEMP`、`TMP` 后
 3. 新增能力同时覆盖正常路径、缺失或不支持内容的诊断；修改异步逻辑时覆盖取消或旧结果覆盖。
 4. 公共 API 的兼容性以 `src/index.ts`、`src/node.ts` 为准。内部路径不承诺兼容，不增加面向消费者的深层导出。
 5. 提交前运行 `npm run verify`；涉及包入口时额外在独立目录安装 tarball，检查 ESM、CommonJS 和 NodeNext 类型解析。预打包检查不替代完整验收。
-6. 更新 README 的支持范围与示例。版本按公共 API 的影响决定；只有获得明确发布授权后再执行 npm publish。
+6. 更新 README 的基础用法与参数说明，并同步 `docs/errors-and-compatibility.md` 的支持范围。版本按公共 API 的影响决定；只有获得明确发布授权后再执行 npm publish。
 
 当前仓库不绑定远程 CI 平台；接入 CI 时使用 Node 24、`npm ci`、安装 Playwright 浏览器后运行 `npm run verify` 即可复用本地检查。

@@ -4,15 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Single npm package `@agilehub/docx-converter`: a TypeScript + Vite DOCX → HTML / JSON / PDF converter. No Mammoth, Java, Word, server, or online formula service is used at runtime. `apps/playground` is the demo application in the same package, not a second package.
+Single npm package `@agilehub/docx-converter`: a TypeScript + Vite DOCX → HTML / JSON converter. No Mammoth, Java, Word, server, or online formula service is used at runtime. `apps/playground` is the demo application in the same package, not a second package.
 
 Three public entry points, each with a narrow responsibility:
 
-- `src/index.ts` — universal API: `convertToHtml`, `convertToJson`, `convertToPdf`, public types.
-- `src/node.ts` — Node-only file-path API: `convertToHtmlFile`, `convertToJsonFile`, `convertToPdfFile`, ImageMagick preview adapter.
+- `src/index.ts` — universal API: `convertToHtml`, `convertToJson`, public types.
+- `src/node.ts` — Node-only file-path API: `convertToHtmlFile`, `convertToJsonFile`, ImageMagick preview adapter.
 - `src/browser-metafile.ts` — browser WMF/EMF image adapter.
 
-Documentation is Chinese and authoritative: `README.md` (usage/support matrix), `docs/architecture.md` (layers and design decisions), `CONTRIBUTING.md` (where changes belong, checks, delivery rules).
+Documentation is Chinese and authoritative: `README.md` (basic usage and parameters), `docs/` (output formats, advanced capabilities, compatibility, architecture, JSON integrations), and `CONTRIBUTING.md` (where changes belong, checks, delivery rules).
 
 ## Commands
 
@@ -37,14 +37,6 @@ npx playwright test tests/e2e/browser.spec.ts -g "formula corpus"
 There is no ESLint/Prettier step; `npm run check` is the lint gate (`scripts/check-architecture.ts`, typecheck, Vitest).
 
 E2E prerequisites: run `npx playwright install chromium`, or set `DOCX_TEST_BROWSER` to an absolute Chrome/Edge executable (e.g. `C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe`). Playwright starts `vite preview` on 4173.
-
-Clean-`dist` build caveat: `tsconfig.tooling.json` includes `tests/e2e/pdf.spec.ts`, which imports `../../dist/node.js`. On a clean checkout `npm run build` can fail at the typecheck step because declarations do not exist yet. Generate them first, then continue:
-
-```sh
-npx vite build --config vite.lib.config.ts
-npx tsc -p tsconfig.build.json
-npm run build
-```
 
 On Windows, if the sandbox restricts the temp directory, point `TEMP`/`TMP` at a project-local `.tmp` before running Vitest.
 
@@ -81,17 +73,16 @@ input (Blob / ArrayBuffer / Uint8Array / HTTP(S) URL / Node path)
 
 ### Public API and options
 
-`src/contracts/conversion.ts` defines the public options/results (`output`, `formulaOutput`, `drawingOutput`, `imageHandler`, `onProgress`, `signal`, `limits`, PDF options). Defaults and usage are documented in `README.md`. Public compatibility is promised only through the three entry files; internal paths are not public exports.
+`src/contracts/conversion.ts` defines the public options/results (`output`, `formulaOutput`, `drawingOutput`, `imageHandler`, `onProgress`, `signal`, `limits`). Defaults and basic usage are documented in `README.md`; detailed behavior is documented under `docs/`. Public compatibility is promised only through the three entry files; internal paths are not public exports.
 
-### Images and PDF
+### Images
 
 - Raster images are identified by bytes and embedded as base64 by default. `imageHandler` controls conversion, large-image upload, and custom URL resolution; only explicit handlers may perform network side effects.
 - EMF uses the built-in `emf-converter`; WMF/TIFF/SVG can be handled by `imageHandler.convert` or the browser metafile adapter. Original resources always remain in `resources`.
-- `convertToPdf` always reuses the HTML result. Browser: `html2pdf.js` + `html2canvas`, chunked by page to stay under canvas size limits (rasterized text). Node: Playwright Chromium `page.pdf()` (selectable text), requiring Chrome/Edge or `pdf.executablePath`.
 
 ### Playground
 
-`apps/playground/worker` runs the shared converter off the main thread; `controller.ts` handles request races and cancellation, `ui/view.ts` owns the sandboxed preview iframe, and `downloads.ts` exports HTML/JSON/PDF/ZIP. A stale request must never overwrite a newer one.
+`apps/playground/worker` runs the shared converter off the main thread; `controller.ts` handles request races and cancellation, `ui/view.ts` owns the sandboxed preview iframe, and `downloads.ts` exports HTML/JSON/ZIP. A stale request must never overwrite a newer one.
 
 ## Math / OMML specifics
 
@@ -107,10 +98,10 @@ input (Blob / ArrayBuffer / Uint8Array / HTTP(S) URL / Node path)
 ## Tests
 
 - `tests/fixtures/docx.ts` builds minimal in-memory DOCX packages; other fixtures cover EMF, WMF, OLE/MTEF, and formulas. Use these instead of real customer documents. `public/sample.docx` is the distributable sample; `demo.docx` at the root is a working manual-check document.
-- `tests/unit` — ports, module boundaries, Worker lifecycle; `tests/integration` — public conversion behavior and failure boundaries; `tests/e2e` — browser preview, downloads, PDF, URL input, and the formula corpus against the built demo.
+- `tests/unit` — ports, module boundaries, Worker lifecycle; `tests/integration` — public conversion behavior and failure boundaries; `tests/e2e` — browser preview, downloads, URL input, and the formula corpus against the built demo.
 - `tests/fixtures/university-formulas.ts` holds 367 OMML formulas across algebra, inequalities, limits, integrals, ODEs, probability/statistics, linear algebra, series, line/multiple integrals, trigonometry, and physics. `formula-corpus.test.ts` validates every formula as both an inline (`m:oMath`) and a display (`m:oMathPara`) equation (no diagnostics, LaTeX reconstructed, valid SVG, correct n-ary limit placement). The e2e corpus test renders both layouts and checks all images load and nothing is painted outside the viewBox. Extend this corpus when fixing formula rendering.
 - E2E runs against the built demo (`dist-demo`), so rebuild after source changes before `npm run test:e2e`. Vitest imports `src` directly.
 
 ## Delivery
 
-Before committing, run `npm run verify`. Keep README support statements and `docs/architecture.md` current when capabilities or module boundaries change. Do not commit documents from the Java reference project; public samples must be generated or independently constructed.
+Before committing, run `npm run verify`. Keep README parameters, `docs/errors-and-compatibility.md` support statements, and `docs/architecture.md` current when capabilities or module boundaries change. Do not commit documents from the Java reference project; public samples must be generated or independently constructed.

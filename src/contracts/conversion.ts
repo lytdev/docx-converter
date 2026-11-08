@@ -48,19 +48,3 @@ export interface ConversionResult {
   resources: Resource[];
   stats: { paragraphs: number; tables: number; images: number; formulas: number; };
 }
-export interface PdfConversionOptions extends ConversionOptions {
-  pdf?: {
-    format?: 'a4' | 'letter';
-    landscape?: boolean;
-    /** Page margins in millimeters. Default 15. */
-    margin?: number;
-    /** Browser rasterization scale, default 2 (1–4). */
-    scale?: number;
-    /** Node only: local Chrome/Edge executable; omitted uses installed Chrome. */
-    executablePath?: string;
-  };
-}
-export interface PdfConversionResult extends Omit<ConversionResult, 'html'> {
-  bytes: Uint8Array;
-  mimeType: 'application/pdf';
-}

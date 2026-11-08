@@ -18,9 +18,6 @@ export function downloadHtml(result: PlaygroundConversionResult, filename: strin
 export function downloadJson(result: PlaygroundConversionResult, filename: string): SavedFile {
   return download(new Blob([JSON.stringify(result.json, null, 2)], { type: 'application/json;charset=utf-8' }), `${filename}.json`);
 }
-export function downloadPdf(bytes: Uint8Array, filename: string): SavedFile {
-  return download(new Blob([new Uint8Array(bytes)], { type: 'application/pdf' }), `${filename}.pdf`);
-}
 export function downloadResources(result: PlaygroundConversionResult, filename: string): SavedFile {
   const zip = zipSync(Object.fromEntries([...result.resources, ...result.convertedImages].map(resource => [resource.path, resource.bytes])));
   return download(new Blob([new Uint8Array(zip)], { type: 'application/zip' }), `${filename}-resources.zip`);

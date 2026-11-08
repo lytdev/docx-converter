@@ -8,7 +8,6 @@
   <p id="status" role="status">请选择 DOCX 文件</p>
   <button id="save" disabled>下载 HTML</button>
   <button id="save-json" disabled>下载 JSON</button>
-  <button id="save-pdf" disabled>下载 PDF</button>
   <p id="fallback" hidden></p>
   <iframe id="preview" title="文档预览" sandbox="" style="display:block;width:100%;height:75vh;border:1px solid #ddd"></iframe>
   <!-- Run npm run build first. This bundle includes ZIP/XML dependencies. -->
@@ -48,7 +47,7 @@
     }
     async function convert(file, title) {
       currentInput = file; currentTitle = title;
-      document.getElementById('save-pdf').disabled = true; save.disabled = true; saveJson.disabled = true; fileInput.disabled = true;
+      save.disabled = true; saveJson.disabled = true; fileInput.disabled = true;
       document.getElementById('preview').srcdoc = '';
       resetFallback();
       status.textContent = '转换中…';
@@ -57,22 +56,12 @@
         html = result.html;
         document.getElementById('preview').srcdoc = html;
         status.textContent = `完成，${result.warnings.length} 条提示：` + result.warnings.map(w => w.message).join('；');
-        document.getElementById('save-pdf').disabled = false; save.disabled = false; saveJson.disabled = false;
+        save.disabled = false; saveJson.disabled = false;
       } catch (error) { status.textContent = error.message; }
       finally { fileInput.disabled = false; }
     };
     fileInput.onchange = () => { const file = fileInput.files[0]; if (file) convert(file, file.name); };
     document.getElementById('url-form').onsubmit = event => { event.preventDefault(); convert(document.getElementById('url').value.trim(), '网络文档.docx'); };
-    document.getElementById('save-pdf').onclick = async () => {
-      const button = document.getElementById('save-pdf'); button.disabled = true;
-      status.textContent = '正在生成 PDF…';
-      try {
-        const result = await DocxConverter.convertToPdf(currentInput, { title: currentTitle, imageHandler, drawingOutput });
-        saveBlob(new Blob([result.bytes], { type: result.mimeType }), currentTitle.replace(/\.docx$/i, '') + '.pdf',
-          `PDF 已生成（${(result.bytes.length / 1024).toFixed(0)} KB）`);
-      } catch (error) { status.textContent = error.message; }
-      finally { button.disabled = false; }
-    };
     save.onclick = () => {
       saveBlob(new Blob([html], {type: 'text/html;charset=utf-8'}), 'document.html', 'HTML 已生成');
     };

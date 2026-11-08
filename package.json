@@ -1,23 +1,27 @@
 {
   "name": "@agilehub/docx-converter",
   "version": "1.0.0",
-  "description": "TypeScript DOCX to HTML JSON And Pdf converter with fonts, tables, images and OMML math",
+  "description": "TypeScript DOCX to HTML and JSON converter with fonts, tables, images and OMML math",
   "type": "module",
   "author": "lytdev <lytdev@outlook.com>",
   "files": [
     "dist",
+    "docs/advanced-features.md",
     "docs/architecture.md",
+    "docs/development.md",
+    "docs/errors-and-compatibility.md",
     "docs/full-test-json-samples.md",
     "docs/json-tiptap-integration.md",
+    "docs/output-formats.md",
     "README.md",
     "CONTRIBUTING.md",
     "LICENSE"
   ],
-   "repository": {
+  "repository": {
     "type": "git",
     "url": "https://github.com/lytdev/docx-converter.git"
   },
-   "publishConfig": {
+  "publishConfig": {
     "access": "public"
   },
   "main": "./dist/index.cjs",
@@ -70,10 +74,7 @@
     "@xmldom/xmldom": "0.9.12",
     "canvg": "^4.0.3",
     "emf-converter": "4.21.0",
-    "fflate": "0.8.3",
-    "html2canvas": "^1.4.1",
-    "html2pdf.js": "^0.14.0",
-    "playwright-core": "^1.64.1"
+    "fflate": "0.8.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",

@@ -145,7 +145,7 @@ View 在预览标签页可见时挂载新的 sandbox iframe；源码标签页下
 | FigureCaptionProcessor / TableCaptionProcessor | 渲染相邻结构时生成 figure/caption |
 | AdjacentSpanProcessor | 合并连续且有效样式相同的文本片段 |
 
-保留规则而非逐行翻译。Java 的外部进程、POI/Java2D、OSS 生命周期不进入浏览器内核。当前 OLE/MTEF、矢量图片与图形能力没有宣称与 Java 等价，详见 README 支持矩阵。
+保留规则而非逐行翻译。Java 的外部进程、POI/Java2D、OSS 生命周期不进入浏览器内核。当前 OLE/MTEF、矢量图片与图形能力没有宣称与 Java 等价，详见 [支持范围与已知限制](errors-and-compatibility.md#支持范围与已知限制)。
 
 ## 后续适配边界
 

@@ -11,7 +11,6 @@ export interface ViewActions {
   cancel(): void;
   download(): void;
   json(): void;
-  pdf(): void;
   resources(): void;
   copy(): void;
 }
@@ -40,7 +39,7 @@ export class PlaygroundView {
       event.preventDefault(); dropzone.classList.remove('over');
       const file = event.dataTransfer?.files[0]; if (file) actions.file(file);
     });
-    for (const action of ['sample', 'cancel', 'download', 'json', 'pdf', 'resources', 'copy'] as const) el(action).addEventListener('click', () => actions[action]());
+    for (const action of ['sample', 'cancel', 'download', 'json', 'resources', 'copy'] as const) el(action).addEventListener('click', () => actions[action]());
     for (const tab of ['preview', 'source'] as const) {
       el(`tab-${tab}`).addEventListener('click', () => this.setTab(tab));
       el(`tab-${tab}`).addEventListener('keydown', event => {
@@ -74,7 +73,7 @@ export class PlaygroundView {
     el('cancel').hidden = true; el('empty').hidden = false; el('error').hidden = true;
     el('warnings').replaceChildren(); el('warning-count').textContent = '0';
     el<HTMLDetailsElement>('diagnostics').open = false;
-    for (const id of ['download', 'json', 'pdf', 'copy', 'resources']) el<HTMLButtonElement>(id).disabled = true;
+    for (const id of ['download', 'json', 'copy', 'resources']) el<HTMLButtonElement>(id).disabled = true;
     for (const strong of el('stats').querySelectorAll('strong')) strong.textContent = '—';
     this.setTab(this.selected);
     el('output-info').textContent = '转换结果可保存为 HTML 或 JSON 文件';
@@ -107,7 +106,6 @@ export class PlaygroundView {
     for (const message of messages) { const li = document.createElement('li'); li.textContent = message; el('warnings').append(li); }
     el<HTMLDetailsElement>('diagnostics').open = result.warnings.length > 0;
     el<HTMLButtonElement>('download').disabled = false; el<HTMLButtonElement>('json').disabled = false; el<HTMLButtonElement>('copy').disabled = false;
-    el<HTMLButtonElement>('pdf').disabled = false;
     el<HTMLButtonElement>('resources').disabled = !result.resources.length && !result.convertedImages.length;
     el('output-info').textContent = `HTML ${(new Blob([result.html]).size / 1024).toFixed(1)} KB · ${result.resources.length} 个原始资源 · ${result.convertedImages.length} 张转码 PNG`;
   }
