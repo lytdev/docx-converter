@@ -5,32 +5,64 @@ import { docx, p, text, mt, image, png, R, A, ns, sampleDocx } from '../fixtures
 import { hex, oleEquation } from '../fixtures/ole';
 import { textWmf } from '../fixtures/wmf';
 import { emf } from '../fixtures/emf';
+import { jsonElement, jsonNodes } from '../fixtures/html-json';
 
 const dom = (html: string) => new DOMParser().parseFromString(html.replace(/<!DOCTYPE[^>]*>/i, '').replace(/<br>/g, '<br/>').replace(/<img\b([^>]*[^/])>/g, '<img$1/>').replace(/<meta\b([^>]*[^/])>/g, '<meta$1/>'), 'application/xml');
 const elements = (html: string, name: string) => Array.from(dom(html).getElementsByTagName(name));
 describe('DOCX conversion', () => {
+  it('returns document metadata and elements directly', async () => {
+    const result = await convertToJson(docx(p(text('内容'))), { title: '示例文档' });
+    expect(Object.keys(result)).toEqual(['meta', 'elements']);
+    expect(result.meta).toEqual({ title: '示例文档' });
+    expect(result.elements[0]).toMatchObject({ tag: 'p', text: '内容' });
+  });
+  it('exports page setup and theme metadata', async () => {
+    const section = `<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1800" w:bottom="900" w:left="1080" w:header="720" w:footer="360" w:gutter="0"/></w:sectPr>`;
+    const theme = `<a:theme xmlns:a="${A}" name="Office"><a:themeElements><a:clrScheme name="Office"><a:dk1><a:srgbClr val="000000"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:accent1><a:srgbClr val="4472C4"/></a:accent1></a:clrScheme><a:fontScheme name="Office"><a:majorFont><a:latin typeface="Calibri Light"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont><a:minorFont><a:latin typeface="Calibri"/><a:ea typeface="宋体"/><a:cs typeface="Arial"/></a:minorFont></a:fontScheme></a:themeElements></a:theme>`;
+    const core = `<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>核心标题</dc:title><dc:subject>测试主题</dc:subject><dc:creator>转换器</dc:creator><cp:keywords>DOCX, JSON</cp:keywords><dcterms:created xsi:type="dcterms:W3CDTF">2026-11-08T10:00:00Z</dcterms:created><cp:revision>3</cp:revision></cp:coreProperties>`;
+    const result = await convertToJson(docx(p(text('元数据')), { section, theme, core }), { title: '文档' });
+    expect(result.meta).toEqual({
+      title: '文档',
+      subject: '测试主题',
+      creator: '转换器',
+      keywords: 'DOCX, JSON',
+      created: '2026-11-08T10:00:00Z',
+      revision: '3',
+      page: {
+        size: { width: '595.3pt', height: '841.9pt' },
+        orientation: 'portrait',
+        margin: { top: '72pt', right: '90pt', bottom: '45pt', left: '54pt', header: '36pt', footer: '18pt', gutter: '0pt' },
+      },
+      theme: {
+        name: 'Office',
+        colors: { dk1: '#000000', lt1: '#FFFFFF', accent1: '#4472C4' },
+        fonts: {
+          major: { latin: 'Calibri Light' },
+          minor: { latin: 'Calibri', eastAsia: '宋体', bidi: 'Arial' },
+        },
+      },
+    });
+    const withoutTitleOption = await convertToJson(docx(p(text('核心标题')), { core }));
+    expect(withoutTitleOption.meta.title).toBe('核心标题');
+  });
   it('exports the same parsed paragraphs, nested tables and formula as a JSON-safe document tree', async () => {
     const formula = `<m:oMath><m:f><m:num>${mt('x')}</m:num><m:den>${mt('2')}</m:den></m:f></m:oMath>`;
     const input = docx(p(text('intro') + formula) + `<w:tbl><w:tr><w:tc>${p(text('cell'))}</w:tc></w:tr></w:tbl>`);
     const [html, json] = await Promise.all([convertToHtml(input), convertToJson(input)]);
-    expect(json.stats).toEqual(html.stats);
-    expect(json.document.blocks.map(block => block.kind)).toEqual(['paragraph', 'table']);
-    const paragraph = json.document.blocks[0];
-    expect(paragraph.kind).toBe('paragraph');
-    if (paragraph.kind !== 'paragraph') throw new Error('Expected paragraph');
-    expect(paragraph.children[0]).toMatchObject({ kind: 'text', text: 'intro' });
-    const math = paragraph.children[1];
-    expect(math.kind).toBe('math');
-    if (math.kind !== 'math') throw new Error('Expected math');
-    expect(math.mathml).toContain('<mfrac>');
-    expect(math.latex).toContain('\\frac');
-    expect(math.src).toMatch(/^data:image\/png;base64,/);
+    expect(json.meta).toEqual({ title: '' });
+    expect(json.elements.map(block => block.tag)).toEqual(['p', 'table']);
+    const paragraph = json.elements[0];
+    expect(paragraph).toMatchObject({ tag: 'p', text: 'intro', class: [], style: {} });
+    expect(paragraph.id).toMatch(/^[0-9a-f-]{36}$/);
+    const formulaImage = jsonElement(json, 'img');
+    expect(formulaImage.src).toMatch(/^data:image\/png;base64,/);
+    expect(formulaImage.attribute).toMatchObject({ 'data-type': 'formula' });
+    expect(formulaImage.attribute['data-latex']).toContain('\\frac');
     const formulaHtml = elements(html.html, 'img').find(element => element.getAttribute('data-type') === 'formula')!;
-    for (const [name, value] of Object.entries(math.attributes ?? {}))
-      expect(formulaHtml.getAttribute(name)).toBe(value);
-    const table = json.document.blocks[1];
-    if (table.kind !== 'table') throw new Error('Expected table');
-    expect(table.rows[0].cells[0].blocks[0]).toMatchObject({ kind: 'paragraph', children: [{ kind: 'text', text: 'cell', style: {} }] });
+    expect(formulaImage.src).toBe(formulaHtml.getAttribute('src'));
+    const table = json.elements[1];
+    expect(table).toMatchObject({ tag: 'table', text: 'cell', class: [], style: { 'border-collapse': 'collapse', border: 'none', 'max-width': '100%' } });
+    expect(jsonElement(json, 'td').text).toBe('cell');
     expect(JSON.parse(JSON.stringify(json))).toEqual(json);
   });
   it('uses the same image options, URL checks and progress stages for JSON output', async () => {
@@ -44,31 +76,24 @@ describe('DOCX conversion', () => {
         return { fileUrl: '/uploads/photo.png' };
       },
     } });
-    const paragraph = result.document.blocks[0];
-    if (paragraph.kind !== 'paragraph' || paragraph.children[0].kind !== 'image') throw new Error('Expected image');
-    expect(paragraph.children[0].src).toBe('/uploads/photo.png');
-    expect(paragraph.children[0].attributes).toMatchObject({
-      src: '/uploads/photo.png',
-      alt: '测试图片',
-      class: 'image-item image-block',
-      'data-type': 'image',
-    });
+    const imageNode = jsonElement(result, 'img');
+    expect(imageNode.src).toBe('/uploads/photo.png');
+    expect(imageNode.alt).toBe('测试图片');
+    expect(imageNode.class).toEqual(['image-item', 'image-block']);
+    expect(imageNode.attribute).toMatchObject({ 'data-type': 'image' });
     expect(calls).toEqual([`${png.length}:png:photo.png`]);
-    expect(result.resources).toEqual([{ path: 'word/media/photo.png', mimeType: 'image/png', size: png.length }]);
     expect(stages).toEqual(['reading', 'extracting', 'parsing', 'parsing', 'rendering', 'complete']);
     const unsafe = await convertToJson(input, { imageHandler: { base64ImageSize: 0, processLargeImage: () => ({ fileUrl: 'javascript:alert(1)' }) } });
-    const unsafeBlock = unsafe.document.blocks[0];
-    if (unsafeBlock.kind !== 'paragraph' || unsafeBlock.children[0].kind !== 'image') throw new Error('Expected image');
-    expect(unsafeBlock.children[0].src).toBeUndefined();
-    expect(unsafe.warnings.map(w => w.code)).toContain('UNSAFE_IMAGE_URL');
+    const unsafeImage = jsonNodes(unsafe).find(node => node.attribute['data-type'] === 'image')!;
+    expect(unsafeImage.src).toBeUndefined();
   });
   it('keeps semantic MathML without an SVG URL when JSON formulaOutput is mathml', async () => {
     const result = await convertToJson(docx(p(`<m:oMath>${mt('x')}</m:oMath>`)), { formulaOutput: 'mathml' });
-    const block = result.document.blocks[0];
-    if (block.kind !== 'paragraph' || block.children[0].kind !== 'math') throw new Error('Expected math');
-    expect(block.children[0].mathml).toContain('<math');
-    expect(block.children[0].src).toBeUndefined();
-    expect(block.children[0].attributes).toMatchObject({ class: 'formula-item', 'data-type': 'formula', 'data-latex': 'x' });
+    const math = jsonElement(result, 'math');
+    const wrapper = jsonNodes(result).find(node => node.attribute['data-type'] === 'formula');
+    expect(wrapper?.class).toEqual(['formula-item']);
+    expect(wrapper?.attribute).toMatchObject({ 'data-type': 'formula', 'data-latex': 'x' });
+    expect(math.text).toBe('x');
   });
   it('preserves text, spaces, escaped markup and mixed content order', async () => {
     const r = await convertToHtml(docx(p(text('A &amp; &lt;B&gt;  ') + '<w:r><w:tab/><w:t>C</w:t><w:br/><w:t>D</w:t></w:r>')));
@@ -140,14 +165,15 @@ describe('DOCX conversion', () => {
     expect(elements(r.html, 'figure')).toHaveLength(1); expect(elements(r.html, 'img')[0].getAttribute('alt')).toBe('图 1 实验示意图');
     expect(r.html).toContain('data:image/png;base64,'); expect(r.html).toContain('width:100px;height:50px'); expect(r.resources[0].bytes).toEqual(png);
     const json = await convertToJson(input);
-    const paragraph = json.document.blocks[0];
-    if (paragraph.kind !== 'paragraph' || paragraph.children[0].kind !== 'image') throw new Error('Expected image');
-    expect(paragraph.children[0].alt).toBe('图 1 实验示意图');
-    expect(paragraph.children[0].attributes?.alt).toBe('图 1 实验示意图');
+    expect(jsonElement(json, 'img').alt).toBe('图 1 实验示意图');
+    expect(jsonElement(json, 'figcaption').text).toBe('图 1 实验示意图');
   });
   it('moves adjacent table titles into caption', async () => {
-    const r = await convertToHtml(docx(p(text('表 2 测试')) + `<w:tbl><w:tr><w:tc>${p(text('data'))}</w:tc></w:tr></w:tbl>`));
+    const input = docx(p(text('表 2 测试')) + `<w:tbl><w:tr><w:tc>${p(text('data'))}</w:tc></w:tr></w:tbl>`);
+    const [r, json] = await Promise.all([convertToHtml(input), convertToJson(input)]);
     expect(elements(r.html, 'caption')[0].textContent).toBe('表 2 测试'); expect(elements(r.html, 'p')).toHaveLength(1);
+    expect(json.elements.map(block => block.tag)).toEqual(['table']);
+    expect(jsonElement(json, 'caption').text).toBe('表 2 测试');
   });
   it('calls async image resolver and rejects unsafe URL results', async () => {
     const input = docx(p(image()), { rels: `<Relationship Id="image1" Type="${R}/image" Target="media/a.png"/>`, media: { 'a.png': png } });
@@ -200,13 +226,9 @@ describe('DOCX conversion', () => {
     const input = docx(p(image()), { rels: `<Relationship Id="image1" Type="${R}/image" Target="media/a.wmf"/>`, media: { 'a.wmf': new Uint8Array([1, 2, 3]) } });
     const fallback = await convertToHtml(input); expect(fallback.resources).toHaveLength(1); expect(fallback.warnings.some(w => w.code === 'UNSUPPORTED_IMAGE')).toBe(true);
     const fallbackJson = await convertToJson(input);
-    const fallbackBlock = fallbackJson.document.blocks[0];
-    if (fallbackBlock.kind !== 'paragraph' || fallbackBlock.children[0].kind !== 'image') throw new Error('Expected image');
-    expect(fallbackBlock.children[0].attributes).toEqual({
-      class: 'unsupported-content',
-      'data-type': 'image',
-      'data-resource': 'word/media/a.wmf',
-    });
+    const fallbackImage = jsonNodes(fallbackJson).find(node => node.attribute['data-type'] === 'image')!;
+    expect(fallbackImage.class).toEqual(['unsupported-content']);
+    expect(fallbackImage.attribute).toEqual({ 'data-type': 'image', 'data-resource': 'word/media/a.wmf' });
     const adapted = await convertToHtml(input, { imageHandler: { convert: async () => ({ bytes: png, mimeType: 'image/png' }) } });
     expect(adapted.html).toContain('<img'); expect(adapted.resources[0].path).toBe('word/media/a.wmf');
   });
@@ -217,12 +239,9 @@ describe('DOCX conversion', () => {
     expect(src).toMatch(/^data:image\/png;base64,/);
     const pngBytes = Buffer.from(src!.split(',')[1], 'base64');
     expect([...pngBytes.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
-    const block = json.document.blocks[0];
-    if (block.kind !== 'paragraph' || block.children[0].kind !== 'image') throw new Error('Expected image');
-    expect(block.children[0].src).toBe(src);
+    expect(jsonElement(json, 'img').src).toBe(src);
     expect(html.resources).toEqual([{ path: 'word/media/shape.emf', mimeType: 'image/x-emf', bytes: emf }]);
     expect(html.warnings).toEqual([]);
-    expect(json.warnings).toEqual([]);
     const uploads: string[] = [];
     const uploaded = await convertToHtml(input, { imageHandler: { base64ImageSize: 0, processLargeImage: (blob, suffix, name) => {
       uploads.push(`${blob.type}:${suffix}:${name}:${blob.size}`);

@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { convertToHtml, convertToJson } from '../../src/index';
 import { docx, p, R } from '../fixtures/docx';
+import { jsonElement } from '../fixtures/html-json';
 
 it('renders cached native line charts as images in both outputs, including labels and data table', async () => {
   const input = docx(p('<w:r><w:drawing><c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="chart1"/></w:drawing></w:r>'), {
@@ -11,14 +12,10 @@ it('renders cached native line charts as images in both outputs, including label
   expect(html.html).toContain('data:image/png;base64,');
   expect(html.warnings).toEqual([]);
   const pngJson = await convertToJson(input);
-  const pngBlock = pngJson.document.blocks[0];
-  if (pngBlock.kind !== 'paragraph' || pngBlock.children[0].kind !== 'image') throw new Error('Missing chart image');
-  expect(pngBlock.children[0].src).toMatch(/^data:image\/png;base64,/);
+  expect(jsonElement(pngJson, 'img').src).toMatch(/^data:image\/png;base64,/);
 
   const svgJson = await convertToJson(input, { generatedImageOutput: 'svg' });
-  const block = svgJson.document.blocks[0];
-  if (block.kind !== 'paragraph' || block.children[0].kind !== 'image') throw new Error('Missing chart image');
-  const svg = Buffer.from(block.children[0].src!.split(',')[1], 'base64').toString('utf8');
+  const svg = Buffer.from(jsonElement(svgJson, 'img').src!.split(',')[1], 'base64').toString('utf8');
   expect(svg).toContain('收益'); expect(svg).toContain('-60%'); expect(svg).toContain('3%');
   expect(svg).toContain('<path'); expect(html.stats.images).toBe(1);
 });
@@ -29,11 +26,8 @@ it('renders cached clustered column charts with category labels and series color
     extra: { 'word/charts/chart1.xml': '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><c:chart><c:plotArea><c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:ser><c:tx><c:strRef><c:strCache><c:pt idx="0"><c:v>系列 1</c:v></c:pt></c:strCache></c:strRef></c:tx><c:spPr><a:solidFill><a:srgbClr val="4874CB"/></a:solidFill></c:spPr><c:cat><c:strRef><c:strCache><c:pt idx="0"><c:v>类别1</c:v></c:pt><c:pt idx="1"><c:v>类别2</c:v></c:pt></c:strCache></c:strRef></c:cat><c:val><c:numRef><c:numCache><c:pt idx="0"><c:v>4.3</c:v></c:pt><c:pt idx="1"><c:v>2.5</c:v></c:pt></c:numCache></c:numRef></c:val></c:ser><c:axId val="1"/><c:axId val="2"/></c:barChart><c:catAx><c:axId val="1"/></c:catAx><c:valAx><c:axId val="2"/><c:scaling><c:min val="0"/><c:max val="5"/></c:scaling></c:valAx></c:plotArea></c:chart></c:chartSpace>' },
   });
   const result = await convertToJson(input, { generatedImageOutput: 'svg' });
-  const block = result.document.blocks[0];
-  if (block.kind !== 'paragraph' || block.children[0].kind !== 'image') throw new Error('Missing chart image');
-  const svg = Buffer.from(block.children[0].src!.split(',')[1], 'base64').toString('utf8');
+  const svg = Buffer.from(jsonElement(result, 'img').src!.split(',')[1], 'base64').toString('utf8');
   expect(svg).toContain('fill="#4874CB"');
   expect(svg).toContain('类别1');
   expect(svg).toContain('类别2');
-  expect(result.warnings).toEqual([]);
 });

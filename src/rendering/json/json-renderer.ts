@@ -1,137 +1,248 @@
-import type { Block, Css, DocumentModel, HtmlAttributes, ImageNode, Inline, MathNode } from '../../domain/document.js';
+import { DOMParser } from '@xmldom/xmldom';
+import type { Element } from '@xmldom/xmldom';
 import type { ConversionOptions } from '../../contracts/conversion.js';
-import type { RenderContext, ResourceReader } from '../../contracts/ports.js';
-import { ImageResolver } from '../../modules/images/image-resolver.js';
-import { safeUrl } from '../../shared/markup.js';
-import { resolveMathImageOutput } from '../math-image-source.js';
-import type { MathImageOutput } from '../math-image-source.js';
-import { cssText } from '../html/styles.js';
-import { matchCaption } from '../html/caption-policy.js';
+import { esc } from '../../shared/markup.js';
+import { renderDocument } from '../html/document-shell.js';
 
-function formulaImageAttributes(node: MathNode, image: MathImageOutput): HtmlAttributes {
-  const align = image.verticalAlignEx === undefined ? 'middle' : `${image.verticalAlignEx}ex`;
-  const layout = node.display ? 'display:block;margin:.6em 0;' : `vertical-align:${align};`;
-  return {
-    src: image.src,
-    alt: node.latex || '公式',
-    class: `formula-item formula-image image-${node.display ? 'block' : 'inline'}`,
-    'data-type': 'formula',
-    ...(node.latex !== undefined ? { 'data-latex': node.latex } : {}),
-    style: `max-width:100%;width:${image.widthEx}ex;height:${image.heightEx}ex;${layout}`,
+export interface HtmlJsonNode {
+  tag: string;
+  id: string;
+  text: string;
+  class: string[];
+  style: Record<string, string>;
+  attribute: Record<string, string>;
+  children: HtmlJsonNode[];
+  title?: string;
+  hidden?: string;
+  contenteditable?: string;
+  src?: string;
+  href?: string;
+  alt?: string;
+  rowspan?: string;
+  colspan?: string;
+  width?: string;
+  height?: string;
+  target?: string;
+  rel?: string;
+  [name: string]: unknown;
+}
+
+export interface HtmlJsonDocument {
+  meta: {
+    title: string;
+    [name: string]: unknown;
   };
+  elements: HtmlJsonNode[];
 }
 
-function mathmlAttributes(node: MathNode): HtmlAttributes {
-  return {
-    class: 'formula-item',
-    'data-type': 'formula',
-    ...(node.latex !== undefined ? { 'data-latex': node.latex } : {}),
-  };
+const GLOBAL_ATTRIBUTES = new Set([
+  'accesskey', 'autocapitalize', 'autofocus', 'contenteditable', 'dir', 'draggable',
+  'enterkeyhint', 'exportparts', 'hidden', 'inert', 'inputmode', 'is', 'itemid',
+  'itemprop', 'itemref', 'itemscope', 'itemtype', 'lang', 'nonce', 'part', 'popover',
+  'role', 'slot', 'spellcheck', 'tabindex', 'title', 'translate',
+]);
+
+const ELEMENT_ATTRIBUTES = new Set([
+  'abbr', 'accept', 'accept-charset', 'action', 'allow', 'alt', 'as', 'async',
+  'autocomplete', 'autoplay', 'capture', 'checked', 'cite', 'cols', 'colspan',
+  'content', 'controls', 'coords', 'crossorigin', 'datetime', 'decoding', 'default',
+  'defer', 'disabled', 'download', 'enctype', 'face', 'for', 'form', 'formaction',
+  'formenctype', 'formmethod', 'formnovalidate', 'formtarget', 'headers', 'height',
+  'high', 'href', 'hreflang', 'http-equiv', 'ismap', 'kind', 'label', 'list', 'loading',
+  'loop', 'low', 'max', 'maxlength', 'media', 'method', 'min', 'minlength', 'multiple',
+  'muted', 'name', 'novalidate', 'open', 'optimum', 'pattern', 'ping', 'placeholder',
+  'playsinline', 'poster', 'preload', 'readonly', 'referrerpolicy', 'rel', 'required',
+  'reversed', 'rows', 'rowspan', 'sandbox', 'scope', 'selected', 'shape', 'size', 'sizes',
+  'span', 'src', 'srcdoc', 'srclang', 'srcset', 'start', 'step', 'target', 'type',
+  'usemap', 'value', 'width', 'wrap',
+]);
+
+const MATHML_ATTRIBUTES = new Set([
+  'accent', 'accentunder', 'align', 'annotation', 'columnalign', 'columnlines',
+  'columnspacing', 'columnwidth', 'denomalign', 'depth', 'display', 'displaystyle',
+  'encoding', 'equalcolumns', 'equalrows', 'fence', 'form', 'frame', 'framespacing',
+  'height', 'largeop', 'linethickness', 'lspace', 'mathbackground', 'mathcolor',
+  'mathsize', 'mathvariant', 'maxsize', 'minlabelspacing', 'minsize', 'movablelimits',
+  'notation', 'numalign', 'rowalign', 'rowlines', 'rowspacing', 'rspace', 'scriptlevel',
+  'selection', 'separator', 'separators', 'side', 'stretchy', 'symmetric', 'width',
+  'xmlns',
+]);
+
+const SVG_ATTRIBUTES = new Set([
+  'clip-path', 'clip-rule', 'cx', 'cy', 'd', 'fill', 'fill-opacity', 'fill-rule',
+  'font-family', 'font-size', 'font-weight', 'gradienttransform', 'gradientunits',
+  'marker-end', 'marker-mid', 'marker-start', 'offset', 'opacity', 'points',
+  'preserveaspectratio', 'r', 'rx', 'ry', 'stop-color', 'stop-opacity', 'stroke',
+  'stroke-dasharray', 'stroke-dashoffset', 'stroke-linecap', 'stroke-linejoin',
+  'stroke-opacity', 'stroke-width', 'text-anchor', 'transform', 'viewbox', 'x', 'x1',
+  'x2', 'y', 'y1', 'y2',
+]);
+
+const SPECIAL_ATTRIBUTES = new Set(['id', 'class', 'style']);
+const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
+
+function childElements(element: Element): Element[] {
+  const result: Element[] = [];
+  for (let child = element.firstChild; child; child = child.nextSibling)
+    if (child.nodeType === 1) result.push(child as Element);
+  return result;
 }
 
-function imageCss(node: ImageNode, inline: boolean): Css {
-  const css: Css = { 'max-width': '100%', ...node.css };
-  if (node.width) css.width = `${Math.round(node.width * 100) / 100}px`;
-  if (node.height) css.height = `${Math.round(node.height * 100) / 100}px`;
-  css['object-fit'] = 'contain';
-  if (node.formula || inline) css['vertical-align'] = 'middle';
-  return css;
+function splitClass(value: string | null): string[] {
+  return value ? value.trim().split(/\s+/).filter(Boolean) : [];
 }
 
-function imageAttributes(node: ImageNode, inline: boolean, src?: string): HtmlAttributes {
-  const attributes: HtmlAttributes = {
-    ...(src ? { src } : {}),
-    alt: node.alt,
-    class: node.formula
-      ? `formula-item formula-image image-${inline ? 'inline' : 'block'}`
-      : `image-item image-${inline ? 'inline' : 'block'}`,
-    'data-type': node.formula ? 'formula' : 'image',
-  };
-  if (node.formula && node.latex) attributes['data-latex'] = node.latex;
-  const style = cssText(imageCss(node, inline));
-  if (style) attributes.style = style;
-  return attributes;
+function splitStyleDeclarations(value: string): string[] {
+  const result: string[] = [];
+  let start = 0, quote = '', depth = 0;
+  for (let index = 0; index < value.length; index++) {
+    const char = value[index];
+    if (quote) {
+      if (char === '\\') index++;
+      else if (char === quote) quote = '';
+      continue;
+    }
+    if (char === '"' || char === "'") quote = char;
+    else if (char === '(') depth++;
+    else if (char === ')' && depth > 0) depth--;
+    else if (char === ';' && depth === 0) {
+      result.push(value.slice(start, index));
+      start = index + 1;
+    }
+  }
+  result.push(value.slice(start));
+  return result;
 }
 
-function unsupportedAttributes(type: 'formula' | 'image', path?: string): HtmlAttributes {
-  return {
-    class: 'unsupported-content',
-    'data-type': type,
-    ...(path ? { 'data-resource': path } : {}),
-  };
+function declarationColon(value: string): number {
+  let quote = '', depth = 0;
+  for (let index = 0; index < value.length; index++) {
+    const char = value[index];
+    if (quote) {
+      if (char === '\\') index++;
+      else if (char === quote) quote = '';
+      continue;
+    }
+    if (char === '"' || char === "'") quote = char;
+    else if (char === '(') depth++;
+    else if (char === ')' && depth > 0) depth--;
+    else if (char === ':' && depth === 0) return index;
+  }
+  return -1;
 }
 
-/** Projects the parsed document model into a JSON-safe tree with resolved display URLs. */
+export function parseInlineStyle(value: string | null): Record<string, string> {
+  const style: Record<string, string> = {};
+  if (!value) return style;
+  for (const declaration of splitStyleDeclarations(value)) {
+    const colon = declarationColon(declaration);
+    if (colon < 0) continue;
+    const name = declaration.slice(0, colon).trim().toLowerCase();
+    const propertyValue = declaration.slice(colon + 1).trim();
+    if (name && propertyValue) style[name] = propertyValue;
+  }
+  return style;
+}
+
+function createId(): string {
+  const cryptoApi = globalThis.crypto;
+  if (typeof cryptoApi?.randomUUID === 'function') return cryptoApi.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (typeof cryptoApi?.getRandomValues === 'function') cryptoApi.getRandomValues(bytes);
+  else for (let index = 0; index < bytes.length; index++) bytes[index] = Math.floor(Math.random() * 256);
+  bytes[6] = bytes[6] & 0x0f | 0x40;
+  bytes[8] = bytes[8] & 0x3f | 0x80;
+  const hex = [...bytes].map(value => value.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function isRootAttribute(name: string): boolean {
+  return GLOBAL_ATTRIBUTES.has(name) || ELEMENT_ATTRIBUTES.has(name) || MATHML_ATTRIBUTES.has(name) || SVG_ATTRIBUTES.has(name);
+}
+
+/** Parses converter HTML into a JSON-safe element tree. Text is the element's full text content. */
 export class JsonRenderer {
-  private readonly images: ImageResolver;
-
-  constructor(resources: ResourceReader, private readonly context: RenderContext, private readonly options: ConversionOptions) {
-    this.images = new ImageResolver(resources, context, options);
-  }
-
-  async render(model: DocumentModel): Promise<DocumentModel> {
-    return { blocks: await this.blocks(model.blocks) };
-  }
-
-  private async blocks(blocks: Block[]): Promise<Block[]> {
-    const result: Block[] = [];
-    for (let index = 0; index < blocks.length; index++) {
-      const block = blocks[index];
-      this.context.checkAbort();
-      if (block.kind === 'paragraph') {
-        const caption = matchCaption(block, blocks[index + 1]);
-        const captionImage = caption?.kind === 'figure' ? caption.image : undefined;
-        result.push({ ...block, children: await this.inlines(block.children, captionImage) });
-      } else {
-        const rows: typeof block.rows = [];
-        for (const row of block.rows) {
-          const cells: typeof row.cells = [];
-          for (const cell of row.cells) cells.push({ ...cell, blocks: await this.blocks(cell.blocks) });
-          rows.push({ ...row, cells });
+  render(html: string, title = ''): HtmlJsonDocument {
+    const document = new DOMParser().parseFromString(html, 'text/html');
+    const body = document.getElementsByTagName('body')[0];
+    let roots = body ? childElements(body) : document.documentElement ? [document.documentElement] : [];
+    if (!body && roots.length === 1 && roots[0].tagName.toLowerCase() === 'html') {
+      const bodyElement = roots[0].getElementsByTagName('body')[0];
+      roots = bodyElement ? childElements(bodyElement) : childElements(roots[0]);
+    }
+    let metadata: Record<string, unknown> = {};
+    if (roots.length === 1 && roots[0].tagName.toLowerCase() === 'article'
+      && splitClass(roots[0].getAttribute('class')).includes('docx-document')) {
+      const serialized = roots[0].getAttribute('data-docx-meta');
+      if (serialized) {
+        try {
+          const parsed = JSON.parse(serialized) as unknown;
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) metadata = parsed as Record<string, unknown>;
+        } catch {
+          // Malformed metadata must not prevent the document elements from being converted.
         }
-        result.push({ ...block, caption: block.caption && { ...block.caption, children: await this.inlines(block.caption.children) },
-          rows });
       }
+      roots = childElements(roots[0]);
     }
-    return result;
+    const coreTitle = typeof metadata.title === 'string' ? metadata.title : '';
+    return { meta: { ...metadata, title: title || coreTitle }, elements: roots.map(element => this.element(element)) };
   }
 
-  private async inlines(nodes: Inline[], captionImage?: ImageNode): Promise<Inline[]> {
-    const result: Inline[] = [];
-    const inlineImage = nodes.some(node => node.kind === 'text' && node.text.trim() || node.kind === 'link');
-    for (const node of nodes) {
-      this.context.checkAbort();
-      if (node.kind === 'image') {
-        const image = captionImage && node.path === captionImage.path && node.formula === captionImage.formula
-          ? { ...node, alt: captionImage.alt }
-          : node;
-        const src = await this.images.resolve(image);
-        result.push({
-          ...image,
-          ...(src ? { src } : {}),
-          attributes: src
-            ? imageAttributes(image, inlineImage, src)
-            : unsupportedAttributes(image.formula ? 'formula' : 'image', image.path),
-        });
-      } else if (node.kind === 'math') {
-        const image = this.options.formulaOutput === 'mathml'
-          ? undefined
-          : await resolveMathImageOutput(node, this.context, this.options.generatedImageOutput ?? 'png');
-        result.push({
-          ...node,
-          ...(image ? { src: image.src } : {}),
-          attributes: image
-            ? formulaImageAttributes(node, image)
-            : this.options.formulaOutput === 'mathml'
-              ? mathmlAttributes(node)
-              : unsupportedAttributes('formula'),
-        });
-      } else if (node.kind === 'link') {
-        const url = safeUrl(node.url);
-        if (!url && node.url) this.context.warn('UNSAFE_LINK', '已移除不安全的超链接地址');
-        result.push({ ...node, url: url ?? '', children: await this.inlines(node.children) });
-      } else result.push({ ...node });
+  private element(element: Element): HtmlJsonNode {
+    const node: HtmlJsonNode = {
+      tag: (element.localName || element.tagName).toLowerCase(),
+      id: element.getAttribute('id') || createId(),
+      text: element.textContent ?? '',
+      class: splitClass(element.getAttribute('class')),
+      style: parseInlineStyle(element.getAttribute('style')),
+      attribute: {},
+      children: [],
+    };
+    for (let index = 0; index < element.attributes.length; index++) {
+      const attribute = element.attributes.item(index);
+      if (!attribute) continue;
+      const name = attribute.name.toLowerCase();
+      if (SPECIAL_ATTRIBUTES.has(name)) continue;
+      if (isRootAttribute(name)) node[name] = attribute.value;
+      else node.attribute[name] = attribute.value;
     }
-    return result;
+    node.children = childElements(element).map(child => this.element(child));
+    return node;
   }
+}
+
+function styleText(style: Record<string, string>): string {
+  return Object.entries(style).map(([name, value]) => `${name}:${value}`).join(';');
+}
+
+function serializeNode(node: HtmlJsonNode): string {
+  const tag = node.tag.toLowerCase();
+  if (!/^[a-z][a-z0-9:-]*$/i.test(tag)) return esc(node.text);
+  const values: Record<string, string> = { ...node.attribute };
+  for (const [name, value] of Object.entries(node)) {
+    if (['tag', 'text', 'class', 'style', 'attribute', 'children', 'id'].includes(name)) continue;
+    if (typeof value === 'string' && isRootAttribute(name)) values[name] = value;
+  }
+  if (node.id) values.id = node.id;
+  if (node.class.length) values.class = node.class.join(' ');
+  const inlineStyle = styleText(node.style);
+  if (inlineStyle) values.style = inlineStyle;
+  const attributes = Object.entries(values)
+    .filter(([name]) => /^[a-z_:][a-z0-9_.:-]*$/i.test(name))
+    .map(([name, value]) => ` ${name}="${esc(String(value))}"`)
+    .join('');
+  const opening = `<${tag}${attributes}>`;
+  if (VOID_TAGS.has(tag)) return opening;
+  const content = node.children.length
+    ? node.children.map(child => serializeNode(child)).join('')
+    : esc(node.text);
+  return `${opening}${content}</${tag}>`;
+}
+
+/** Serializes the HTML JSON tree back to the same document/fragment shape used by convertToHtml. */
+export function serializeJsonToHtml(document: HtmlJsonDocument, options: ConversionOptions): string {
+  return renderDocument(document.elements.map(node => serializeNode(node)).join(''), {
+    ...options,
+    ...(options.title === undefined && document.meta.title ? { title: document.meta.title } : {}),
+  }, document.meta);
 }

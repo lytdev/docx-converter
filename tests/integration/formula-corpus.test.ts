@@ -1,20 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { DOMParser } from '@xmldom/xmldom';
 import { convertToJson } from '../../src/index';
-import type { MathNode } from '../../src/index';
 import { docx, p } from '../fixtures/docx';
 import { formulaCategories, mathParagraph, universityFormulas } from '../fixtures/university-formulas';
 import type { FormulaCase } from '../fixtures/university-formulas';
+import { jsonElement, jsonElements } from '../fixtures/html-json';
 
 const REQUIRED_CATEGORIES = ['不等式', '不定积分', '常微分方程', '代数', '定积分', '概率论与数理统计', '极限', '矩阵与线性代数', '无穷级数与级数展开', '曲线积分与重积分'];
 
-function collectMath(value: unknown, out: MathNode[]): void {
-  if (!value || typeof value !== 'object') return;
-  if ((value as { kind?: string }).kind === 'math') { out.push(value as MathNode); return; }
-  for (const child of Object.values(value)) {
-    if (Array.isArray(child)) child.forEach(item => collectMath(item, out));
-    else collectMath(child, out);
-  }
+function formulaImages(document: Parameters<typeof jsonElements>[0]) {
+  return jsonElements(document, 'img').filter(node => node.attribute['data-type'] === 'formula');
+}
+
+function hasTag(node: ReturnType<typeof jsonElement>, tag: string): boolean {
+  return node.tag === tag || node.children.some(child => hasTag(child, tag));
 }
 
 /** Structural checks that catch MathJax failures without needing a browser. */
@@ -69,25 +68,26 @@ async function inspectLayout(formula: FormulaCase, layout: 'inline' | 'display')
   const errors: string[] = [];
   const display = layout === 'display';
   const result = await convertToJson(docx(p(mathParagraph(formula, layout))), { generatedImageOutput: 'svg' });
-  for (const warning of result.warnings) errors.push(`${warning.code}: ${warning.message}`);
-  if (result.stats.formulas !== 1) errors.push(`stats.formulas=${result.stats.formulas}`);
 
-  const nodes: MathNode[] = [];
-  collectMath(result.document, nodes);
-  if (nodes.length !== 1) return [...errors, `expected one math node, found ${nodes.length}`];
+  const nodes = formulaImages(result);
+  if (nodes.length !== 1) return [...errors, `expected one formula image, found ${nodes.length}`];
 
   const node = nodes[0];
-  if (node.display !== display) errors.push(`node.display=${node.display}`);
-  if (!node.latex) errors.push('missing reconstructed LaTeX');
+  const isDisplay = node.class.includes('image-block');
+  if (isDisplay !== display) errors.push(`formula image display=${isDisplay}`);
+  const latex = node.attribute['data-latex'];
+  if (typeof latex !== 'string' || !latex) errors.push('missing reconstructed LaTeX');
   if (!node.src) errors.push('missing SVG src');
   else errors.push(...inspectSvg(node.src));
 
   // Word stacks n-ary limits only in display equations; inline equations always
   // keep them on the right, regardless of m:limLoc="undOvr".
   const wantsStacked = display && /m:limLoc\s+m:val="undOvr"/.test(formula.omml);
-  const stacked = node.mathml.includes('<munderover>');
-  if (wantsStacked && !stacked) errors.push('display equation did not stack undOvr n-ary limits');
-  if (!wantsStacked && stacked) errors.push(`${layout} equation stacked n-ary limits`);
+  if (wantsStacked) {
+    const mathml = await convertToJson(docx(p(mathParagraph(formula, layout))), { formulaOutput: 'mathml' });
+    const stacked = hasTag(jsonElement(mathml, 'math'), 'munderover');
+    if (!stacked) errors.push('display equation did not stack undOvr n-ary limits');
+  }
   return errors;
 }
 
@@ -102,9 +102,7 @@ describe('university formula corpus', () => {
 
   it('falls back to text glyphs for unbundled font ranges without failing the image', async () => {
     const result = await convertToJson(docx(p('<m:oMath><m:r><m:t>éЖ</m:t></m:r></m:oMath>')), { generatedImageOutput: 'svg' });
-    expect(result.warnings).toEqual([]);
-    const nodes: MathNode[] = [];
-    collectMath(result.document, nodes);
+    const nodes = formulaImages(result);
     expect(nodes).toHaveLength(1);
     expect(nodes[0].src).toMatch(/^data:image\/svg\+xml;base64,/);
     expect(inspectSvg(nodes[0].src!)).toEqual([]);

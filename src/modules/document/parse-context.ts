@@ -1,6 +1,6 @@
 import type { ConversionResult } from '../../contracts/conversion.js';
 import type { ConversionContext } from '../../contracts/ports.js';
-import type { DocumentModel } from '../../domain/document.js';
+import type { DocumentMetadata, DocumentModel } from '../../domain/document.js';
 import type { PartReader } from '../../infrastructure/opc/part-reader.js';
 import type { Styles } from '../styles/style-resolver.js';
 import type { Numbering } from '../numbering/numbering-reader.js';
@@ -17,6 +17,7 @@ export interface ParseContext {
 
 export interface ParsedDocument {
   document: DocumentModel;
+  metadata: DocumentMetadata;
   stats: ConversionResult['stats'];
   resourcePaths: string[];
 }

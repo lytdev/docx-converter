@@ -38,3 +38,50 @@ export interface Row { cells: Cell[]; css: Css; }
 export interface Table { kind: 'table'; rows: Row[]; css: Css; caption?: Paragraph; }
 export type Block = Paragraph | Table;
 export interface DocumentModel { blocks: Block[]; }
+export interface DocumentPageMetadata {
+  size?: { width?: string; height?: string };
+  orientation?: 'portrait' | 'landscape';
+  margin?: {
+    top?: string;
+    right?: string;
+    bottom?: string;
+    left?: string;
+    header?: string;
+    footer?: string;
+    gutter?: string;
+  };
+}
+export interface ThemeFonts {
+  latin?: string;
+  eastAsia?: string;
+  bidi?: string;
+}
+export interface DocumentThemeMetadata {
+  name?: string;
+  colors: Record<string, string>;
+  fonts: {
+    major: ThemeFonts;
+    minor: ThemeFonts;
+  };
+}
+export interface DocumentMetadata {
+  title?: string;
+  subject?: string;
+  creator?: string;
+  keywords?: string;
+  description?: string;
+  lastModifiedBy?: string;
+  created?: string;
+  modified?: string;
+  category?: string;
+  contentStatus?: string;
+  version?: string;
+  revision?: string;
+  language?: string;
+  identifier?: string;
+  source?: string;
+  rights?: string;
+  page?: DocumentPageMetadata;
+  theme?: DocumentThemeMetadata;
+  [name: string]: unknown;
+}

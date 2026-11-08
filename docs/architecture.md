@@ -56,14 +56,15 @@ File / Blob / ArrayBuffer / Uint8Array
   → archive → DocxPackage      解压限制 → OPC 关系、XML 缓存
   → DocumentParser             协调段落 / 行内 / 绘图 / 表格解析
   → ParsedDocument             内容模型、统计、被引用资源路径
-  → HtmlRenderer / JsonRenderer 仅消费同一个模型、ResourceReader、RenderContext
+  → HtmlRenderer               消费 DocumentModel、ResourceReader、RenderContext
+  → JsonRenderer               解析 HtmlRenderer 输出并生成 meta / elements
   → ImageResolver              images.convert → 按大小选择 processLargeImage / resolve / Base64
   → ConversionResult / JsonConversionResult
 ```
 
 解析器使用 namespace URI + localName，避免依赖 XML 前缀。主文档和辅助部件通过 OPC relationships 定位。包内路径归一化并拒绝越界，不自动访问外部关系。`@xmldom/xmldom` 提供浏览器、Worker、Node 一致的 XML API。
 
-每次 `convertToHtml` 或 `convertToJson` 创建独立的包缓存、解析上下文、会话和输出渲染器。两者通过同一个 `parseDocx` 流程取得 `DocumentModel`，然后分别投影为 HTML 或可序列化的 JSON 树。图片与公式的 JSON 节点除语义字段外还投影 `attributes`，保证 `src`、`alt`、`class`、`data-type`、`data-latex` 和 `style` 与 HTML 元素一致。`renderJsonToHtml` 使用这些已解析字段直接复用 HTML 渲染器，无需原 DOCX 包或资源读取器。`ConversionSession` 负责取消、进度及诊断；`ParseContext` 负责本次解析的样式、编号、统计和资源集合；列表计数器属于本次 HTML 渲染器。没有全局可变转换状态，不跨请求共享缓存。
+`convertToHtml` 通过 `parseDocx` 取得 `DocumentModel` 和文档元数据，再由 `HtmlRenderer` 生成 HTML。元数据从 `docProps/core.xml` 读取标题、作者、主题、关键字、时间等核心属性，从 `sectPr/pgSz/pgMar` 提取纸张尺寸、方向和页边距，从主题部件提取颜色及 major/minor 字体，并写入正文容器的 `data-docx-meta`。`convertToJson` 复用 `convertToHtml` 的完整结果，再把 body 中的 HTML 元素递归投影为 `HtmlJsonNode`：标签写入 `tag`，class 和 style 分别转成数组与对象，标准属性保留在节点根对象，`data-*`、`aria-*` 和未知扩展属性进入 `attribute`，缺失 `id` 时生成 UUID；`data-docx-meta` 解析为 `meta`。`renderJsonToHtml` 直接序列化该元素树。`ConversionSession` 负责取消、进度及诊断；`ParseContext` 负责本次解析的样式、编号、统计和资源集合；列表计数器属于本次 HTML 渲染器。没有全局可变转换状态，不跨请求共享缓存。
 
 `DocumentParser` 通过回调连接“表格中解析块”和“文本框中解析段落”的递归关系，子解析器无需反向引用主解析器。渲染器仅要求 `ResourceReader` 提供资源字节和 MIME，不访问 XML、不持有 `DocumentParser`。因此可以使用手写模型和内存资源直接测试渲染。
 

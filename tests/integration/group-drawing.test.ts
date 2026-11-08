@@ -1,14 +1,13 @@
 import { expect, it, vi } from 'vitest';
 import { convertToHtml, convertToJson } from '../../src/index';
 import { groupedDrawingDocx as fixture } from '../fixtures/group-drawing';
+import { jsonElement } from '../fixtures/html-json';
 
 
 it('selects grouped vector shapes over empty fallback images and shares SVG between HTML and JSON', async () => {
   const json = await convertToJson(fixture(), { drawingOutput: 'svg' });
-  const block = json.document.blocks[0];
-  if (block.kind !== 'paragraph' || block.children[0].kind !== 'image') throw new Error('Missing drawing');
-  const image = block.children[0];
-  expect(block.children).toHaveLength(1);
+  const image = jsonElement(json, 'img');
+  expect(json.elements[0].children).toHaveLength(1);
   expect(image.alt).toBe('养老 & <金融>');
   const svg = Buffer.from(image.src!.split(',')[1], 'base64').toString('utf8');
   expect(svg).toContain('scale(2 2)');
@@ -16,8 +15,6 @@ it('selects grouped vector shapes over empty fallback images and shares SVG betw
   expect(svg).toContain('养老 &amp; &lt;金融&gt;');
   expect(svg).toContain('M100 0L0 40');
   expect(svg).toContain('Z" fill="#000000"');
-  expect(json.stats.images).toBe(1);
-  expect(json.warnings).toEqual([]);
   const html = await convertToHtml(fixture(), { drawingOutput: 'svg' });
   expect(html.html).toContain(image.src);
   expect(html.warnings).toEqual([]);
@@ -62,16 +59,13 @@ it('renders common preset geometries instead of rejecting the group', async () =
 
 it('defaults to 3x PNG in both outputs without changing display dimensions', async () => {
   const result = await convertToJson(fixture());
-  const block = result.document.blocks[0];
-  if (block.kind !== 'paragraph' || block.children[0].kind !== 'image') throw new Error('Missing drawing');
-  const image = block.children[0];
+  const image = jsonElement(result, 'img');
   expect(image.src).toMatch(/^data:image\/png;base64,/);
   const bytes = Buffer.from(image.src!.split(',')[1], 'base64');
   expect([...bytes.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
   expect(bytes.readUInt32BE(16)).toBe(404 * 3);
   expect(bytes.readUInt32BE(20)).toBe(204 * 3);
-  expect(image.width).toBe(404); expect(image.height).toBe(204);
-  expect(result.warnings).toEqual([]);
+  expect(image.style.width).toBe('404px'); expect(image.style.height).toBe('204px');
   const html = await convertToHtml(fixture(), { drawingOutput: 'png' });
   expect(html.html).toContain(image.src);
 });

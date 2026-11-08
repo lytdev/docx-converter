@@ -1,4 +1,4 @@
-import type { Block, DocumentModel, Inline, Paragraph, Table } from '../../domain/document.js';
+import type { Block, DocumentMetadata, DocumentModel, Inline, Paragraph, Table } from '../../domain/document.js';
 import type { ConversionOptions } from '../../contracts/conversion.js';
 import type { RenderContext, ResourceReader } from '../../contracts/ports.js';
 import { esc, safeUrl } from '../../shared/markup.js';
@@ -13,9 +13,9 @@ export class HtmlRenderer {
   constructor(resources: ResourceReader, private readonly context: RenderContext, private readonly options: ConversionOptions) {
     this.images = new ImageRenderer(resources, context, options);
   }
-  async render(model: DocumentModel): Promise<string> {
+  async render(model: DocumentModel, metadata: DocumentMetadata = {}): Promise<string> {
     const body = await this.blocks(model.blocks, false);
-    return renderDocument(body, this.options);
+    return renderDocument(body, this.options, metadata);
   }
   private async blocks(blocks: Block[], inTable: boolean): Promise<string> {
     let html = '';
@@ -36,7 +36,7 @@ export class HtmlRenderer {
         html += `<figure${styleAttr(caption.paragraph.style.css)}>${await this.images.render(caption.image, false)}<figcaption>${esc(caption.image.alt)}</figcaption></figure>`;
         i++; continue;
       }
-      html += b.kind === 'table' ? await this.table(b) : await this.paragraph(b, inTable);
+      html += b.kind === 'table' ? await this.table(b, b.caption) : await this.paragraph(b, inTable);
     }
     return html;
   }

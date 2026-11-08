@@ -49,6 +49,7 @@
     "dev": "vite --host 127.0.0.1",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.worker.json --noEmit && tsc -p tsconfig.tooling.json --noEmit",
     "check:architecture": "node scripts/check-architecture.ts",
+    "check:html-json": "node scripts/check-html-json-consistency.mjs",
     "check": "npm run check:architecture && npm run typecheck && npm test",
     "build": "npm run check:architecture && npm run typecheck && vite build --config vite.lib.config.ts && vite build --config vite.browser.config.ts && tsc -p tsconfig.build.json && vite build",
     "preview": "vite preview --host 127.0.0.1",

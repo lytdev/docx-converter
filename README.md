@@ -6,7 +6,7 @@
 一个用 **TypeScript + Vite** 实现的 DOCX 转换库，可以在浏览器或 Node.js 中把 Word 文档（`.docx`）转换成：
 
 - **HTML**：保留字体、颜色、表格、图片和公式，可直接预览或部署；
-- **JSON**：结构化的段落、表格、图片、公式节点，方便二次处理；
+- **JSON**：文档元数据与递归 HTML 元素树，方便直接映射到编辑器和业务组件；
 - **PDF**：浏览器或 Node.js 中导出 PDF 文件。
 
 转换全部在本机执行，**不依赖 Word、后端服务或在线公式服务**，可以自行保留字体、表格边框和公式结构。
@@ -181,32 +181,94 @@ JSON.stringify(result, null, 2);
 结构如下：
 
 ```ts
+interface HtmlJsonNode {
+  tag: string;
+  id: string;
+  text: string;
+  class: string[];
+  style: Record<string, string>;
+  attribute: Record<string, string>;
+  children: HtmlJsonNode[];
+  title?: string;
+  hidden?: string;
+  contenteditable?: string;
+  src?: string;
+  href?: string;
+  rowspan?: string;
+  [name: string]: unknown;
+}
+
 interface JsonConversionResult {
-  document: DocumentModel; // 段落/表格/图片/公式组成的文档树
-  warnings: Diagnostic[];
-  resources: { path: string; mimeType: string; size: number }[];
-  stats: { paragraphs: number; tables: number; images: number; formulas: number };
+  meta: {
+    title: string;
+    page?: {
+      size?: { width?: string; height?: string };
+      orientation?: 'portrait' | 'landscape';
+      margin?: {
+        top?: string;
+        right?: string;
+        bottom?: string;
+        left?: string;
+        header?: string;
+        footer?: string;
+        gutter?: string;
+      };
+    };
+    theme?: {
+      name?: string;
+      colors: Record<string, string>;
+      fonts: {
+        major: { latin?: string; eastAsia?: string; bidi?: string };
+        minor: { latin?: string; eastAsia?: string; bidi?: string };
+      };
+    };
+    [name: string]: unknown;
+  };
+  elements: HtmlJsonNode[];
 }
 ```
 
-`result.document.blocks` 是按原文顺序排列的段落与表格；表格单元格内仍然是 `blocks`，段落内的 `children` 包含文字、图片、公式、链接等节点。JSON 结果的 `resources` 只包含资源的 `path`、`mimeType`、`size`，因此整个返回值可以直接序列化；需要原始二进制时请使用 `convertToHtml` 的 `resources`。
+`convertToJson` 会先调用 `convertToHtml`，再把 `<article class="docx-document">` 内的元素递归解析为 JSON。返回值就是一个 `{ meta, elements }` 对象，`result.elements` 是顶层 HTML 元素数组。每个节点包含：
 
-图片与公式节点同时包含语义字段和 `attributes`。`attributes` 与对应 HTML 元素的 `src`、`alt`、`class`、`data-type`、`data-latex`、`style` 保持一致，便于调用方在不重复推导 HTML 属性的情况下使用 JSON。
+`meta` 会读取 `docProps/core.xml` 中的标题、主题、作者、关键字、描述、创建/修改时间、修订号等核心属性；`options.title` 优先于文档内标题。页面设置从 `sectPr` 提取尺寸、方向和页边距，主题部件提供颜色及 major/minor 字体。长度使用 `pt`，颜色使用十六进制值。
 
-`formulaOutput: 'image'`（默认）时，OMML 公式节点同时包含 MathML、可提取的 LaTeX 和自包含 PNG `src`；设置 `generatedImageOutput: 'svg'` 可改为 SVG，设为 `formulaOutput: 'mathml'` 时不生成图片。`output` 和 `title` 只影响 HTML 包装，对 JSON 文档树没有影响。
+- `tag`：小写标签名，例如 `p`、`table`、`img`、`math`。
+- `id`：保留原 HTML 的 `id`；不存在时生成 UUID。
+- `text`：元素的完整文本内容。
+- `class`：按空白拆分后的 class 数组。
+- `style`：把内联 `style` 拆成属性对象。
+- 标准属性：`title`、`hidden`、`contenteditable`、`src`、`href`、`rowspan`、`alt` 等直接放在节点根对象。
+- `attribute`：`data-*`、`aria-*` 及未知扩展属性。
+- `children`：子元素数组。
+
+例如：
+
+```json
+{
+  "tag": "p",
+  "id": "62e4e831-cfe4-4ce2-bc44-76dbd9bcfe22",
+  "text": "示例",
+  "class": [],
+  "style": { "text-align": "center" },
+  "attribute": { "data-type": "note" },
+  "children": []
+}
+```
+
+`formulaOutput: 'image'`（默认）时公式在 JSON 中对应 `img` 节点，`src` 是 PNG/SVG 地址，`data-type="formula"` 和 `data-latex` 位于 `attribute`；设为 `formulaOutput: 'mathml'` 时对应递归的 MathML 元素树。
 
 JSON 文档树可以直接还原为 HTML，不需要原 DOCX 或资源包：
 
 ```ts
 import { convertToJson, renderJsonToHtml } from '@agilehub/docx-converter';
 
-const { document } = await convertToJson(file, { output: 'fragment' });
-const html = await renderJsonToHtml(document, { output: 'fragment' });
+const result = await convertToJson(file, { output: 'fragment' });
+const html = await renderJsonToHtml(result, { output: 'fragment' });
 ```
 
-还原器优先使用 JSON 图片和公式节点中的 `src` 与 `attributes`，因此与生成 JSON 时相同选项下的原始 HTML 保持一致。
+还原器会把 `tag`、`class`、`style`、标准属性和 `attribute` 重新序列化为 HTML。JSON 中生成的 UUID 也会作为 `id` 输出。
 
-`convertToHtml` 与 `convertToJson` 接受相同的输入和选项，但**是两次独立转换**；如果同时调用，上传回调也会各执行一次。
+`convertToJson` 内部只执行一次 HTML 转换，因此图片上传和公式生成不会重复。JSON 只保留文档元数据和元素树；需要警告、资源或统计信息时请调用 `convertToHtml`。分别调用 `convertToHtml` 与 `convertToJson` 时仍是两次独立转换，上传回调会各执行一次。
 
 ### PDF
 

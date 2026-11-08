@@ -1,23 +1,18 @@
-import type { ConversionOptions, ConversionResult, Diagnostic, DocxInput, Resource } from '../contracts/conversion.js';
-import type { RenderContext, ResourceReader } from '../contracts/ports.js';
-import type { DocumentModel } from '../domain/document.js';
+import type { ConversionOptions, ConversionResult, DocxInput, Resource } from '../contracts/conversion.js';
 import { DocxPackage } from '../infrastructure/opc/docx-package.js';
 import { DocumentParser } from '../modules/document/document-parser.js';
 import { HtmlRenderer } from '../rendering/html/html-renderer.js';
-import { JsonRenderer } from '../rendering/json/json-renderer.js';
+import { JsonRenderer, serializeJsonToHtml } from '../rendering/json/json-renderer.js';
+import type { HtmlJsonDocument } from '../rendering/json/json-renderer.js';
 import { ConversionSession } from './conversion-session.js';
 import { resolveLimits } from './limits.js';
 import { readInput } from './read-input.js';
 import { DocxError } from '../contracts/errors.js';
-export type { DocumentModel, Block, Inline, Paragraph, Table, Cell, Row, TextNode, ImageNode, MathNode, LinkNode, RunStyle, ParaStyle, Css, HtmlAttributes } from '../domain/document.js';
+export type { DocumentMetadata, DocumentPageMetadata, DocumentThemeMetadata, ThemeFonts, DocumentModel, Block, Inline, Paragraph, Table, Cell, Row, TextNode, ImageNode, MathNode, LinkNode, RunStyle, ParaStyle, Css, HtmlAttributes } from '../domain/document.js';
+export type { HtmlJsonDocument, HtmlJsonNode } from '../rendering/json/json-renderer.js';
 
-/** The JSON result contains only serializable values; resources report metadata, not binary bytes. */
-export interface JsonConversionResult {
-  document: DocumentModel;
-  warnings: Diagnostic[];
-  resources: { path: string; mimeType: string; size: number }[];
-  stats: ConversionResult['stats'];
-}
+/** The JSON result is the document metadata and its recursively parsed HTML elements. */
+export type JsonConversionResult = HtmlJsonDocument;
 
 async function parseDocx(input: DocxInput, options: ConversionOptions) {
   if (options.generatedImageOutput !== undefined && !['png', 'svg'].includes(options.generatedImageOutput))
@@ -56,7 +51,7 @@ function collectResources(source: DocxPackage, paths: string[]): Resource[] {
 export async function convertToHtml(input: DocxInput, options: ConversionOptions = {}): Promise<ConversionResult> {
   const { source, context, parsed, session } = await parseDocx(input, options);
   session.progress({ stage: 'rendering' });
-  const html = await new HtmlRenderer(source, context, options).render(parsed.document);
+  const html = await new HtmlRenderer(source, context, options).render(parsed.document, parsed.metadata);
 
   session.checkAbort();
   const resources = collectResources(source, parsed.resourcePaths);
@@ -64,31 +59,14 @@ export async function convertToHtml(input: DocxInput, options: ConversionOptions
   return { html, warnings: session.warnings, resources, stats: parsed.stats };
 }
 
-/** Convert DOCX to a serializable document tree using the same options and parser as convertToHtml. */
+/** Convert DOCX to HTML first, then project the rendered elements into a serializable JSON tree. */
 export async function convertToJson(input: DocxInput, options: ConversionOptions = {}): Promise<JsonConversionResult> {
-  const { source, context, parsed, session } = await parseDocx(input, options);
-  session.progress({ stage: 'rendering' });
-  const document = await new JsonRenderer(source, context, options).render(parsed.document);
-
-  session.checkAbort();
-  const resources = collectResources(source, parsed.resourcePaths)
-    .map(({ path, mimeType, bytes }) => ({ path, mimeType, size: bytes.byteLength }));
-  session.progress({ stage: 'complete' });
-  return { document, warnings: session.warnings, resources, stats: parsed.stats };
+  const result = await convertToHtml(input, options);
+  return new JsonRenderer().render(result.html, options.title);
 }
 
-const emptyResources: ResourceReader = {
-  bytes: () => undefined,
-  mime: () => 'application/octet-stream',
-};
-
-/** Restore HTML directly from a serialized DocumentModel without the original DOCX package. */
-export async function renderJsonToHtml(document: DocumentModel, options: ConversionOptions = {}): Promise<string> {
-  const context: RenderContext = {
-    checkAbort: () => {
-      if (options.signal?.aborted) throw new DocxError('ABORTED', '转换已取消');
-    },
-    warn: () => {},
-  };
-  return new HtmlRenderer(emptyResources, context, options).render(document);
+/** Restore HTML directly from the serialized HTML element tree. */
+export async function renderJsonToHtml(document: HtmlJsonDocument, options: ConversionOptions = {}): Promise<string> {
+  if (options.signal?.aborted) throw new DocxError('ABORTED', '转换已取消');
+  return serializeJsonToHtml(document, options);
 }

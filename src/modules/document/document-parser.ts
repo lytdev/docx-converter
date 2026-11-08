@@ -12,6 +12,7 @@ import { parseParagraph } from './paragraph-parser.js';
 import { InlineParser } from './inline-parser.js';
 import { DrawingParser } from './drawing-parser.js';
 import { TableParser } from './table-parser.js';
+import { readDocumentMetadata } from './document-metadata.js';
 
 /** Coordinates document flow; feature parsers own their own algorithms. */
 export class DocumentParser {
@@ -43,7 +44,12 @@ export class DocumentParser {
       if (['header', 'footer', 'footnotes', 'endnotes', 'comments'].some(t => r.type.endsWith(`/${t}`)))
         this.context.operations.warn('UNSUPPORTED_PART', `当前正文转换不包含 ${r.type.split('/').pop()} 部件`);
     }
-    return { document: { blocks }, stats: { ...this.context.stats }, resourcePaths: [...this.context.resources] };
+    return {
+      document: { blocks },
+      metadata: readDocumentMetadata(this.context.source, body, this.context.styles),
+      stats: { ...this.context.stats },
+      resourcePaths: [...this.context.resources],
+    };
   }
 
   private blocks(parent: X): Block[] {

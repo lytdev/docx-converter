@@ -8,6 +8,7 @@ import { mathParagraph, universityFormulas } from '../fixtures/university-formul
 import { textWmf } from '../fixtures/wmf';
 import { emf } from '../fixtures/emf';
 import { hex, oleEquation } from '../fixtures/ole';
+import { jsonElements } from '../fixtures/html-json';
 
 async function convertHtml(
   page: Page,
@@ -56,9 +57,8 @@ test('browser worker converts, previews, exports and reopens standalone HTML', a
   const jsonDownload = await jsonEvent; expect(jsonDownload.suggestedFilename()).toBe('示例文档.json');
   const jsonPath = resolve('.tmp/exported.json'); await jsonDownload.saveAs(jsonPath);
   const json = JSON.parse(await readFile(jsonPath, 'utf8'));
-  expect(json.document.blocks.length).toBeGreaterThan(5);
-  expect(json.stats.formulas).toBe(2);
-  expect(json.warnings).toEqual([]);
+  expect(json.elements.length).toBeGreaterThan(5);
+  expect(json.meta).toEqual({ title: '示例文档' });
   const exported = await context.newPage(); await exported.goto(`file:///${path.replace(/\\/g, '/')}`);
   await expect(exported.locator('math')).toHaveCount(0); await expect(exported.locator('img.formula-image')).toHaveCount(2); await expect(exported.getByRole('heading', { name: '文档转换 · 能力示例', exact: true })).toBeVisible();
   expect(await exported.locator('img').evaluateAll((images: HTMLImageElement[]) => images.every(img => img.naturalWidth > 0))).toBe(true);
@@ -98,14 +98,14 @@ test('UMD build works through a plain script tag without bundler globals', async
     const bytes = await (await fetch('/sample.docx')).arrayBuffer();
     const api = (window as unknown as { DocxConverter: {
       convertToHtml: (bytes: ArrayBuffer) => Promise<{ html: string; warnings: unknown[] }>;
-      convertToJson: (bytes: ArrayBuffer) => Promise<{ document: { blocks: { kind: string }[] }; warnings: unknown[] }>;
+      convertToJson: (bytes: ArrayBuffer) => Promise<{ meta: { title: string }; elements: { tag: string }[] }>;
     } }).DocxConverter;
     const [r, json] = await Promise.all([api.convertToHtml(bytes), api.convertToJson(bytes)]);
     return { pngImages: (r.html.match(/data:image\/png;base64,/g) ?? []).length, hasMath: r.html.includes('<math'), warnings: r.warnings,
-      jsonHasBlocks: json.document.blocks.length > 5, jsonFirst: json.document.blocks[0]?.kind, jsonWarnings: json.warnings,
+      jsonHasElements: json.elements.length > 5, jsonFirst: json.elements[0]?.tag, jsonTitle: json.meta.title,
       oldExportsAbsent: !('convertDocx' in api) && !('convertDocxToJson' in api) };
   });
-  expect(result).toEqual({ pngImages: 3, hasMath: false, warnings: [], jsonHasBlocks: true, jsonFirst: 'paragraph', jsonWarnings: [], oldExportsAbsent: true });
+  expect(result).toEqual({ pngImages: 3, hasMath: false, warnings: [], jsonHasElements: true, jsonFirst: 'h1', jsonTitle: '', oldExportsAbsent: true });
 });
 
 test('plain browser script can offload images above the byte limit', async ({ page }) => {
@@ -174,7 +174,7 @@ test('rasterizes a normal EMF image and includes both PNG and original EMF in do
   await mkdir('.tmp', { recursive: true });
   const jsonPath = resolve('.tmp/emf.json'); await jsonDownload.saveAs(jsonPath);
   const json = JSON.parse(await readFile(jsonPath, 'utf8'));
-  expect(json.document.blocks[0].children[0].src).toMatch(/^data:image\/png;base64,/);
+  expect(jsonElements(json, 'img')[0].src).toMatch(/^data:image\/png;base64,/);
   const zipEvent = page.waitForEvent('download'); await page.locator('#resources').click();
   const zipDownload = await zipEvent;
   const zipPath = resolve('.tmp/emf-resources.zip'); await zipDownload.saveAs(zipPath);

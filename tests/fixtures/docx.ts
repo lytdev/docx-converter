@@ -37,12 +37,12 @@ function diagramPng(): Uint8Array {
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0)); let offset = 0;
   for (const p of parts) { out.set(p, offset); offset += p.length; } return out;
 }
-export interface FixtureOptions { styles?: string; numbering?: string; theme?: string; rels?: string; media?: Record<string, Uint8Array>; extra?: Record<string, string | Uint8Array>; }
+export interface FixtureOptions { styles?: string; numbering?: string; theme?: string; section?: string; core?: string; rels?: string; media?: Record<string, Uint8Array>; extra?: Record<string, string | Uint8Array>; }
 export function docx(body: string, options: FixtureOptions = {}): Uint8Array {
   const files: Record<string, Uint8Array> = {
     '[Content_Types].xml': strToU8('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'),
-    '_rels/.rels': strToU8(`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="r1" Type="${R}/officeDocument" Target="word/document.xml"/></Relationships>`),
-    'word/document.xml': strToU8(`<?xml version="1.0" encoding="UTF-8"?><w:document ${ns}><w:body>${body}<w:sectPr/></w:body></w:document>`),
+    '_rels/.rels': strToU8(`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="r1" Type="${R}/officeDocument" Target="word/document.xml"/>${options.core ? '<Relationship Id="core" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>' : ''}</Relationships>`),
+    'word/document.xml': strToU8(`<?xml version="1.0" encoding="UTF-8"?><w:document ${ns}><w:body>${body}${options.section ?? '<w:sectPr/>'}</w:body></w:document>`),
   };
   let rels = options.rels ?? '';
   for (const type of ['styles', 'numbering', 'theme'] as const) {
@@ -50,6 +50,7 @@ export function docx(body: string, options: FixtureOptions = {}): Uint8Array {
     if (value) { files[`word/${type}.xml`] = strToU8(value); rels += `<Relationship Id="${type}" Type="${R}/${type}" Target="${type}.xml"/>`; }
   }
   files['word/_rels/document.xml.rels'] = strToU8(`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels}</Relationships>`);
+  if (options.core) files['docProps/core.xml'] = strToU8(options.core);
   for (const [path, bytes] of Object.entries(options.media ?? {})) files[`word/media/${path}`] = bytes;
   for (const [path, bytes] of Object.entries(options.extra ?? {})) files[path] = typeof bytes === 'string' ? strToU8(bytes) : bytes;
   return zipSync(files);

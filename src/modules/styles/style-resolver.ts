@@ -1,4 +1,4 @@
-import type { Css, ParaStyle, RunStyle } from '../../domain/document.js';
+import type { Css, DocumentThemeMetadata, ParaStyle, RunStyle } from '../../domain/document.js';
 import type { DiagnosticSink } from '../../contracts/ports.js';
 import type { PartReader } from '../../infrastructure/opc/part-reader.js';
 import { attr, bool, child, children, descendants, is, NS, number, val } from '../../infrastructure/xml/dom.js';
@@ -12,12 +12,14 @@ export class Styles {
   private cache = new Map<string, Style>();
   private themeColors = new Map<string, string>();
   private themeFonts = new Map<string, string>();
+  private themeName?: string;
   defaultRun: RunStyle = {};
   defaultPara: ParaStyle = { css: {} };
   defaultParaId?: string;
   constructor(pkg: PartReader, private readonly diagnostics: DiagnosticSink) {
     const themePath = pkg.related(pkg.main, 'theme');
     const theme = themePath ? pkg.xml(themePath)?.documentElement : undefined;
+    this.themeName = theme?.getAttribute('name') || undefined;
     for (const c of children(descendants(theme, 'clrScheme', NS.a)[0])) {
       const v = children(c)[0]; const hex = color(v?.getAttribute('lastClr') || v?.getAttribute('val') || undefined);
       if (hex && c.localName) this.themeColors.set(c.localName, hex);
@@ -82,6 +84,23 @@ export class Styles {
     if (!name) return;
     const aliases: Record<string, string> = { tx1: 'dk1', tx2: 'dk2', bg1: 'lt1', bg2: 'lt2' };
     return this.themeColors.get(aliases[name] ?? name);
+  }
+  documentTheme(): DocumentThemeMetadata {
+    const fonts = (kind: 'major' | 'minor') => {
+      const latin = this.themeFonts.get(`${kind}HAnsi`) ?? this.themeFonts.get(`${kind}Ascii`);
+      const eastAsia = this.themeFonts.get(`${kind}EastAsia`);
+      const bidi = this.themeFonts.get(`${kind}Bidi`);
+      return {
+        ...(latin ? { latin } : {}),
+        ...(eastAsia ? { eastAsia } : {}),
+        ...(bidi ? { bidi } : {}),
+      };
+    };
+    return {
+      ...(this.themeName ? { name: this.themeName } : {}),
+      colors: Object.fromEntries(this.themeColors),
+      fonts: { major: fonts('major'), minor: fonts('minor') },
+    };
   }
   readRun(pr?: X): RunStyle {
     const out: RunStyle = {};

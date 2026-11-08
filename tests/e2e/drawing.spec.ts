@@ -22,7 +22,7 @@ test('plain browser API selects PNG or SVG for both public conversion methods', 
     for (const drawingOutput of ['png', 'svg'] as const) {
       const html = await api.convertToHtml(input, { drawingOutput });
       const json = await api.convertToJson(input, { drawingOutput });
-      result.push({ html: html.html.includes(`data:image/${drawingOutput === 'png' ? 'png' : 'svg+xml'};base64,`), json: JSON.stringify(json).includes(`data:image/${drawingOutput === 'png' ? 'png' : 'svg+xml'};base64,`), warnings: [...html.warnings, ...json.warnings] });
+      result.push({ html: html.html.includes(`data:image/${drawingOutput === 'png' ? 'png' : 'svg+xml'};base64,`), json: JSON.stringify(json).includes(`data:image/${drawingOutput === 'png' ? 'png' : 'svg+xml'};base64,`), warnings: html.warnings });
     }
     return result;
   }, Array.from(groupedDrawingDocx()));

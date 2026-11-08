@@ -12,5 +12,9 @@ const options = {
 const json = output.toLowerCase().endsWith('.json');
 const result = json ? await convertToJsonFile(input, options) : await convertToHtmlFile(input, options);
 await writeFile(output, json ? JSON.stringify(result, null, 2) : result.html, 'utf8');
-console.log(result.stats);
-for (const warning of result.warnings) console.warn(warning.code, warning.message);
+if (json) {
+  console.log(`${result.elements.length} elements`);
+} else {
+  console.log(result.stats);
+  for (const warning of result.warnings) console.warn(warning.code, warning.message);
+}

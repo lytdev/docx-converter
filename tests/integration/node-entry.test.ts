@@ -11,9 +11,7 @@ describe('Node file-path API', () => {
       nodeApi.convertToJsonFile(path, options),
     ]);
     expect(html.html).toContain('<!DOCTYPE html>');
-    expect(json.document.blocks.length).toBeGreaterThan(0);
-    expect(json.stats).toEqual(html.stats);
-    expect(json.warnings).toEqual(html.warnings);
+    expect(json.elements.length).toBeGreaterThan(0);
     expect('convertDocxFile' in nodeApi).toBe(false);
   });
 
