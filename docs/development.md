@@ -13,7 +13,7 @@ npm run dev
 
 打开终端提示的地址（默认 `http://127.0.0.1:5173`），选择或拖入一个 `.docx` 文件，或点击“试用示例文档”。
 
-演示页支持预览、查看 HTML 源码、复制内容、下载 HTML / JSON 和资源 ZIP，并支持取消与 60 秒超时终止。
+演示页支持预览、查看 HTML 源码、复制内容、下载 HTML / JSON 和资源 ZIP，并支持取消与 60 秒超时终止。上传包含批注或脚注的 DOCX 后，可以直接在 HTML 源码或下载的 JSON 中检查 `data-type="annotation"`、`data-annotation`、`data-type="footnote"` 和 `data-footnote`。
 
 预览构建后的生产版本：
 
@@ -48,7 +48,25 @@ npm run preview
 | `dist/*.d.ts` | TypeScript 类型声明 |
 | `dist-demo/` | 可部署到静态服务器的完整浏览器应用 |
 
-`dist-demo` 使用相对资源路径，可部署在子路径。Worker 应通过 HTTP(S) 加载，不能直接双击入口文件运行。普通 script 示例位于 `examples/browser.html`，直接调用库、不使用 Worker，适合小文件演示。
+`dist-demo` 使用相对资源路径，可部署在子路径。Worker 应通过 HTTP(S) 加载，不能直接双击入口文件运行。普通 script 示例位于 `examples/browser.html`，直接调用库、不使用 Worker，适合小文件演示。`examples/node.mjs` 演示 Node 文件入口，`public/sample.docx` 是演示页的默认示例文档。
+
+批注和脚注是 HTML/JSON 元素树的一部分，不需要额外初始化参数：
+
+```ts
+import type { HtmlJsonNode } from '@agilehub/docx-converter';
+
+const result = await convertToJson(file, { output: 'fragment' });
+
+function findTypedNodes(nodes: HtmlJsonNode[], type: string): HtmlJsonNode[] {
+  return nodes.flatMap(node => [
+    ...(node.attribute['data-type'] === type ? [node] : []),
+    ...findTypedNodes(node.children, type),
+  ]);
+}
+
+const annotations = findTypedNodes(result.elements, 'annotation');
+const footnotes = findTypedNodes(result.elements, 'footnote');
+```
 
 ## 全新检出后的首次构建
 
@@ -74,7 +92,7 @@ npx playwright install chromium
 
 - `tests/fixtures/`：最小 DOCX、EMF、WMF、OLE/MTEF 构造器，以及 300 多个大学公式的 OMML 语料；
 - `tests/unit/`：端口、模块边界和 Worker 生命周期；
-- `tests/integration/`：公开转换行为、公式、表格、图片和失败边界；
+- `tests/integration/`：公开转换行为、公式、表格、图片、批注、脚注和失败边界；
 - `tests/e2e/`：浏览器预览、下载、URL 输入和公式语料。
 
 `public/sample.docx` 是人工构造的可分发示例；可执行 `node scripts/generate-sample.ts` 在 Node 24 下重新生成。

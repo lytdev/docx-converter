@@ -127,19 +127,50 @@ LaTeX 是从 OLE/MTEF 重建的，不一定等于作者最初输入的源码。�
 
 ## 批注
 
-正文中的 Word 批注范围会转换为带属性标记的行内元素：
+正文中的 Word 批注范围会转换为带属性标记的行内元素。批注正文来自 `word/comments.xml`，选区来自正文中的 `commentRangeStart/commentRangeEnd`。
+
+普通文本批注会尽量合并为一个元素：
 
 ```html
 <span
   class="annotation-item"
   data-type="annotation"
   data-annotation="中国式现代化的批注"
+  style="font-family:&quot;宋体&quot;;font-size:12pt"
 >
   中国式现代化
 </span>
 ```
 
-批注文字与文本样式会合并到同一个元素中，不会额外生成只承载样式的内层 `span`。批注范围跨多个文本样式或段落时，会按实际文本节点分别输出 `annotation-item` 元素。`data-annotation` 来自 `word/comments.xml` 中的批注正文。若公式、图片等内容自身已有 `data-type`，则保留原元素并在外层嵌套批注 `span`，避免属性冲突。未选中文字、仅在光标位置插入的零长度批注暂不输出。
+若选区包含公式、图片等自身已有 `data-type` 的内容，会保留原节点并在外层增加批注 `span`，避免属性冲突：
+
+```html
+<span class="annotation-item" data-type="annotation" data-annotation="公式批注">
+  <span class="formula-item" data-type="formula">...</span>
+</span>
+```
+
+接入时按以下规则处理：
+
+- `data-type="annotation"` 表示批注包装节点，`data-annotation` 是批注正文。
+- 单段文字和文本样式会合并在同一个 `span`，不要假设批注节点一定包含子 `span`。
+- 选区跨多个样式或段落时，会按实际文本节点分别输出多个 `annotation-item`。
+- 多个批注范围重叠时可能产生嵌套批注节点，应按 DOM 层级保留。
+- 仅识别正文中实际包含文字、公式或图片的批注范围。
+- 未选中文字、仅在光标位置插入的零长度批注暂不输出。
+- 批注作者、时间、已解决状态、回复线程和 Word 侧边栏不属于当前输出范围。
+
+浏览器或编辑器接入时可以按下面的方式查找：
+
+```ts
+const annotations = document.querySelectorAll<HTMLElement>(
+  '[data-type="annotation"]',
+);
+
+for (const element of annotations) {
+  console.log(element.dataset.annotation);
+}
+```
 
 ## 脚注
 
@@ -149,7 +180,32 @@ LaTeX 是从 OLE/MTEF 重建的，不一定等于作者最初输入的源码。�
 <sup data-type="footnote" data-footnote="脚注的文本">1</sup>
 ```
 
-普通脚注输出阿拉伯数字；`footnotePr/numFmt` 为 `decimalEnclosedCircle`、`decimalEnclosedCircleChinese` 或 `ideographEnclosedCircle` 时，1 至 20 输出 `①` 至 `⑳`。`footnotePr/numStart` 可指定起始编号。转换结果只把脚注引用和正文写入行内标记，不生成 Word 页面底部的脚注分隔线或脚注区域。
+脚注转换规则：
+
+- 默认按正文中的首次引用顺序输出 `1、2、3...`。
+- `footnotePr/numStart` 可以改变起始编号。
+- `footnotePr/numFmt` 为 `decimalEnclosedCircle`、`decimalEnclosedCircleChinese` 或 `ideographEnclosedCircle` 时，1 至 20 输出 `①` 至 `⑳`；超出范围回退为普通数字。
+- `data-footnote` 保存脚注正文。多段脚注使用换行符连接。
+- 引用存在但找不到脚注正文时，输出 `MISSING_FOOTNOTE` 警告，仍保留可显示的编号。
+- 只输出正文引用和脚注正文，不生成 Word 页面底部的脚注分隔线或脚注区域。
+- 尾注、自定义复杂脚注标记和 Word 分页位置不在当前支持范围内。
+
+前端接入时可读取上标节点的编号和完整正文：
+
+```ts
+const footnotes = document.querySelectorAll<HTMLElement>(
+  'sup[data-type="footnote"]',
+);
+
+for (const element of footnotes) {
+  console.log({
+    number: element.textContent,
+    content: element.dataset.footnote,
+  });
+}
+```
+
+需要把这些节点映射到编辑器时，见 Tiptap 接入指南的 [批注映射](json-tiptap-integration.md#6-批注映射) 和 [脚注映射](json-tiptap-integration.md#7-脚注映射)。
 
 ## 原生图表、组合图形与 SmartArt
 

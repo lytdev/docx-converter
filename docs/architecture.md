@@ -19,7 +19,7 @@ src/
 │   ├── opc/                     包关系、Content Types、部件读取接口
 │   └── xml/                     安全 XML 解析、命名空间和 DOM 遍历
 ├── modules/
-│   ├── document/                正文编排、段落、行内、绘图、表格解析
+│   ├── document/                正文编排、段落、行内、批注、脚注、绘图、表格解析
 │   ├── styles/                  字体、主题、样式继承、OOXML 尺寸值
 │   ├── numbering/               编号定义
 │   ├── math/                    OMML → 内部 MathML / LaTeX；OLE CFB → MTEF → LaTeX；WMF 一致性检查
@@ -65,7 +65,9 @@ File / Blob / ArrayBuffer / Uint8Array
 
 解析器使用 namespace URI + localName，避免依赖 XML 前缀。主文档和辅助部件通过 OPC relationships 定位。包内路径归一化并拒绝越界，不自动访问外部关系。`@xmldom/xmldom` 提供浏览器、Worker、Node 一致的 XML API。
 
-`convertToHtml` 通过 `parseDocx` 取得 `DocumentModel` 和文档元数据，再由 `HtmlRenderer` 生成 HTML。元数据从 `docProps/core.xml` 读取标题、作者、主题、关键字、时间等核心属性，从 `sectPr/pgSz/pgMar` 提取纸张尺寸、方向和页边距，从主题部件提取颜色及 major/minor 字体，并写入正文容器的 `data-docx-meta`。`convertToJson` 复用 `convertToHtml` 的完整结果，再把 body 中的 HTML 元素递归投影为 `HtmlJsonNode`：标签写入 `tag`，class 和 style 分别转成数组与对象，标准属性保留在节点根对象，`data-*`、`aria-*` 和未知扩展属性进入 `attribute`，缺失 `id` 时生成 UUID；`data-docx-meta` 解析为 `meta`。`renderJsonToHtml` 直接序列化该元素树。`ConversionSession` 负责取消、进度及诊断；`ParseContext` 负责本次解析的样式、编号、统计和资源集合；列表计数器属于本次 HTML 渲染器。没有全局可变转换状态，不跨请求共享缓存。
+`convertToHtml` 通过 `parseDocx` 取得 `DocumentModel` 和文档元数据，再由 `HtmlRenderer` 生成 HTML。元数据从 `docProps/core.xml` 读取标题、作者、主题、关键字、时间等核心属性，从 `sectPr/pgSz/pgMar` 提取纸张尺寸、方向和页边距，从主题部件提取颜色及 major/minor 字体，并写入正文容器的 `data-docx-meta`。`convertToJson` 复用 `convertToHtml` 的完整结果，再把 body 中的 HTML 元素递归投影为 `HtmlJsonNode`：标签写入 `tag`，class 和 style 分别转成数组与对象，标准属性保留在节点根对象，`data-*`、`aria-*` 和未知扩展属性进入 `attribute`，缺失 `id` 时生成 UUID；`data-docx-meta` 解析为 `meta`。批注和脚注没有独立的 JSON 顶层字段，分别通过 `attribute['data-annotation']` 和 `attribute['data-footnote']` 保留。`renderJsonToHtml` 直接序列化该元素树。`ConversionSession` 负责取消、进度及诊断；`ParseContext` 负责本次解析的样式、编号、批注、脚注、统计和资源集合；列表计数器属于本次 HTML 渲染器。没有全局可变转换状态，不跨请求共享缓存。
+
+批注通过 `word/comments.xml` 与正文 `commentRangeStart/commentRangeEnd` 关联，只标注范围内实际存在的文字、公式或图片；零长度光标批注暂不生成节点。脚注通过 `word/footnotes.xml` 与 `footnoteReference` 关联，编号在正文解析过程中按首次引用顺序分配，并读取 `settings.xml` 的 `footnotePr/numFmt` 与 `numStart`。这两类部件只在正文解析阶段读取，不创建独立页面区域。
 
 `DocumentParser` 通过回调连接“表格中解析块”和“文本框中解析段落”的递归关系，子解析器无需反向引用主解析器。渲染器仅要求 `ResourceReader` 提供资源字节和 MIME，不访问 XML、不持有 `DocumentParser`。因此可以使用手写模型和内存资源直接测试渲染。
 
@@ -156,6 +158,6 @@ View 在预览标签页可见时挂载新的 sandbox iframe；源码标签页下
 
 ## 验收
 
-字体与样式值、标题规则、表格结构、公式 PNG/SVG/MathML/LaTeX、资源保存通过集成测试验证。`tests/fixtures/university-formulas.ts` 的 300 多个大学数学/物理公式会逐条转换：断言无诊断、LaTeX 可重建、SVG 结构有效；浏览器验收再检查默认 PNG、显式 SVG、所有图片可加载且字形不超出 viewBox。模块测试覆盖独立渲染、会话隔离和 Worker 清理；浏览器验收覆盖 Worker、预览、HTML 下载、重新打开、普通 script 调用、小屏布局和旧请求覆盖保护。现有 Java demo 仅用于本地对照检查，不纳入 npm 包。
+字体与样式值、标题规则、表格结构、公式 PNG/SVG/MathML/LaTeX、批注范围、脚注编号与正文、资源保存通过集成测试验证。`tests/fixtures/university-formulas.ts` 的 300 多个大学数学/物理公式会逐条转换：断言无诊断、LaTeX 可重建、SVG 结构有效；浏览器验收再检查默认 PNG、显式 SVG、所有图片可加载且字形不超出 viewBox。模块测试覆盖独立渲染、会话隔离和 Worker 清理；浏览器验收覆盖 Worker、预览、HTML 下载、重新打开、普通 script 调用、小屏布局和旧请求覆盖保护。现有 Java demo 仅用于本地对照检查，不纳入 npm 包。
 
 `npm run check` 运行依赖约束、四组 TypeScript 校验及 Vitest；`npm run build` 也会校验架构和类型。`npm run check:html-json -- input.docx report.json` 使用真实 DOCX 校验 `meta`、HTML/JSON 元素树以及 JSON 还原 HTML 的一致性，比较时忽略自动生成的 `id`。完整验收执行 `npm run verify`。新增功能的文件归属、检查命令与提交范围见 [贡献指南](../CONTRIBUTING.md)。

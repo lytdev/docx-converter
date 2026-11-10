@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/@agilehub/docx-converter.svg)](https://www.npmjs.com/package/@agilehub/docx-converter)
 [![npm license](https://img.shields.io/npm/l/@agilehub/docx-converter.svg)](https://www.npmjs.com/package/@agilehub/docx-converter)
 
-一个使用 **TypeScript + Vite** 实现的 DOCX 转换库，可在浏览器或 Node.js 中将 Word 文档转换为 HTML 或 JSON。转换在本机执行，不依赖 Word、后端服务或在线公式服务。
+一个使用 **TypeScript + Vite** 实现的 DOCX 转换库，可在浏览器或 Node.js 中将 Word 文档转换为 HTML 或 JSON。支持正文字体排版、表格、图片、图形、公式、批注和脚注等正文内容。转换在本机执行，不依赖 Word、后端服务或在线公式服务。
 
 ## 目录
 
@@ -38,6 +38,8 @@ frame.srcdoc = result.html;
 ```
 
 `warnings` 应展示给用户。生成的完整 HTML 已包含基础样式，图片默认以内嵌 Data URI 输出。
+
+正文批注使用 `data-type="annotation"` 和 `data-annotation`，脚注使用上标 `sup`、`data-type="footnote"` 和 `data-footnote`。完整的 HTML/JSON 结构、限制和接入建议见 [批注与脚注说明](docs/advanced-features.md#批注)。
 
 ### Node.js
 
@@ -149,12 +151,14 @@ interface ConversionResult {
 
 ### JSON
 
-`convertToJson` 返回 `{ meta, elements }`。`meta` 包含文档标题、页面和主题信息，`elements` 是递归的 HTML 元素树。节点字段及 JSON 还原 HTML 的说明见 [输出格式](docs/output-formats.md#json)，接入 Tiptap 见 [Tiptap 接入指南](docs/json-tiptap-integration.md)。
+`convertToJson` 返回 `{ meta, elements }`。`meta` 包含文档标题、页面和主题信息，`elements` 是递归的 HTML 元素树。数组元素不是独立文本节点，`text` 是当前元素的完整文本内容；带 `children` 时应优先按 `children` 递归映射。
+
+JSON 不包含 `warnings`、`resources` 或 `stats`，这些信息需从 `convertToHtml` 获取。每次调用都会重新执行转换并生成新的节点 `id`；需要稳定业务标识时不要使用自动生成的 UUID。完整说明见 [输出格式](docs/output-formats.md#json) 和 [convertToJson 注意事项](docs/output-formats.md#converttojson-注意事项)，接入 Tiptap 见 [Tiptap 接入指南](docs/json-tiptap-integration.md)。
 
 ## 更多文档
 
 - [输出格式与结果结构](docs/output-formats.md)
-- [进阶能力：图片、公式、图表与网络地址](docs/advanced-features.md)
+- [进阶能力：图片、公式、批注、脚注、图表与网络地址](docs/advanced-features.md)
 - [错误、进度、限制与兼容性](docs/errors-and-compatibility.md)
 - [本地开发、构建与测试](docs/development.md)
 - [JSON 到 Tiptap 接入](docs/json-tiptap-integration.md)

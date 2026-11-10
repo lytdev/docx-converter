@@ -486,18 +486,108 @@ interface HtmlJsonNode {
 }
 ```
 
-## 6. 第三方解析流程
+## 6. 批注和脚注
+
+批注和脚注都属于行内节点。批注使用 `span`，脚注使用上标 `sup`。下面的片段同时包含普通正文、一条批注和一个脚注引用：
+
+```json
+{
+  "tag": "p",
+  "id": "paragraph-id",
+  "text": "正文中国式现代化1",
+  "class": [],
+  "style": {},
+  "attribute": {},
+  "children": [
+    {
+      "tag": "span",
+      "id": "body-text-id",
+      "text": "正文",
+      "class": [],
+      "style": {
+        "font-size": "12pt",
+        "white-space": "pre-wrap"
+      },
+      "attribute": {},
+      "children": []
+    },
+    {
+      "tag": "span",
+      "id": "annotation-id",
+      "text": "中国式现代化",
+      "class": ["annotation-item"],
+      "style": {
+        "font-size": "12pt",
+        "white-space": "pre-wrap"
+      },
+      "attribute": {
+        "data-type": "annotation",
+        "data-annotation": "中国式现代化的批注"
+      },
+      "children": []
+    },
+    {
+      "tag": "sup",
+      "id": "footnote-id",
+      "text": "1",
+      "class": [],
+      "style": {},
+      "attribute": {
+        "data-type": "footnote",
+        "data-footnote": "脚注的文本"
+      },
+      "children": []
+    }
+  ]
+}
+```
+
+如果批注覆盖公式、图片等已经带 `data-type` 的内容，外层批注节点会保留 `children`：
+
+```json
+{
+  "tag": "span",
+  "id": "annotation-wrapper-id",
+  "text": "x",
+  "class": ["annotation-item"],
+  "style": {},
+  "attribute": {
+    "data-type": "annotation",
+    "data-annotation": "公式批注"
+  },
+  "children": [
+    {
+      "tag": "span",
+      "id": "formula-wrapper-id",
+      "text": "x",
+      "class": ["formula-item"],
+      "style": {},
+      "attribute": {
+        "data-type": "formula",
+        "data-latex": "x"
+      },
+      "children": []
+    }
+  ]
+}
+```
+
+解析批注时要读取 `attribute["data-annotation"]`，不能只依赖 `text`。解析脚注时要读取 `text` 作为显示编号，并读取 `attribute["data-footnote"]` 作为正文。未选中文字的零长度批注当前不会输出节点。
+
+## 7. 第三方解析流程
 
 1. 解析顶层 JSON，确认对象包含 `meta` 和 `elements`。
 2. 遍历 `elements`，把每个节点转换为目标编辑器或业务节点。
 3. 使用 `tag` 判断元素类型。
 4. 使用 `text` 读取元素文本；有 `children` 时递归处理子元素。
 5. 使用 `class`、`style`、标准根属性和 `attribute` 恢复呈现信息。
-6. 表格递归处理 `table → caption/tbody → tr → td`。
-7. 列表递归处理 `ol/ul → li`，`start` 和 `list-style-type` 分别控制起始编号和列表类型。
-8. 图片读取 `src` 和 `alt`；公式图片还需读取 `attribute["data-type"]` 和 `attribute["data-latex"]`。
+6. `span` 的 `attribute["data-type"] === "annotation"` 表示批注，读取 `data-annotation`；有 `children` 时必须继续递归。
+7. `sup` 的 `attribute["data-type"] === "footnote"` 表示脚注，读取显示编号和 `data-footnote`。
+8. 表格递归处理 `table → caption/tbody → tr → td`。
+9. 列表递归处理 `ol/ul → li`，`start` 和 `list-style-type` 分别控制起始编号和列表类型。
+10. 图片读取 `src` 和 `alt`；公式图片还需读取 `attribute["data-type"]` 和 `attribute["data-latex"]`。
 
-## 7. 与 HTML 的一致性
+## 8. 与 HTML 的一致性
 
 `convertToJson` 直接解析本次 `convertToHtml` 的输出。`renderJsonToHtml` 会再次生成对应 HTML。
 

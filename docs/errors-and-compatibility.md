@@ -7,7 +7,8 @@
 `convertToHtml` 和 `convertToJson` 都返回 Promise：
 
 - **文件结构错误、超出资源限制、图片回调抛错**等会使 Promise 拒绝；
-- **内容兼容问题**通常进入 `warnings`，不会伪装成完整支持；
+- **内容兼容问题**通常进入 `convertToHtml().warnings`，不会伪装成完整支持；
+- `convertToJson` 只返回 `{ meta, elements }`，不包含诊断；需要警告时单独调用 `convertToHtml`；
 - `DocxError` 提供 `code` 和 `message`，可用于分支处理。
 
 ```ts
@@ -119,6 +120,14 @@ npm install @agilehub/docx-converter --registry=https://registry.npmjs.org
 **导出的 HTML 中中文或公式与 Word 不完全一致？**
 
 库不嵌入字体文件，显示效果取决于运行环境中已安装的字体。公式默认使用 STIX Two Math，字形接近 Word 的 Cambria Math，但不完全相同。
+
+**`convertToJson` 为什么没有 `warnings`、`resources` 和 `stats`？**
+
+`JsonConversionResult` 只返回 `meta` 和 `elements`。`MISSING_FOOTNOTE`、图片兼容性等诊断需要从单独的 `convertToHtml` 调用获取。分别调用 HTML 和 JSON 转换会执行两次转换，图片上传和公式生成回调也可能各执行一次。
+
+**JSON 里的自动 `id` 可以持久化吗？**
+
+不建议。源 HTML 没有 `id` 时，每次 `convertToJson` 都会生成新的 UUID。业务主键应使用文档数据或额外生成的稳定 ID；比较 HTML 和 JSON 时应忽略自动 `id`。
 
 **页眉、页脚没有出现在结果中？**
 
