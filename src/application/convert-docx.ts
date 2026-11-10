@@ -8,7 +8,7 @@ import { ConversionSession } from './conversion-session.js';
 import { resolveLimits } from './limits.js';
 import { readInput } from './read-input.js';
 import { DocxError } from '../contracts/errors.js';
-export type { Annotation, DocumentMetadata, DocumentPageMetadata, DocumentThemeMetadata, ThemeFonts, DocumentModel, Block, Inline, Paragraph, Table, Cell, Row, TextNode, ImageNode, MathNode, LinkNode, RunStyle, ParaStyle, Css, HtmlAttributes } from '../domain/document.js';
+export type { Annotation, DocumentMetadata, DocumentPageMetadata, DocumentThemeMetadata, ThemeFonts, DocumentModel, Block, Inline, Paragraph, Table, Cell, Row, TextNode, ImageNode, MathNode, LinkNode, FootnoteNode, RunStyle, ParaStyle, Css, HtmlAttributes } from '../domain/document.js';
 export type { HtmlJsonDocument, HtmlJsonNode } from '../rendering/json/json-renderer.js';
 
 /** The JSON result is the document metadata and its recursively parsed HTML elements. */

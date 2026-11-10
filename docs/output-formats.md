@@ -144,6 +144,20 @@ interface JsonConversionResult {
 }
 ```
 
+脚注引用对应 `sup` 节点，`text` 是显示编号，`attribute` 中包含脚注正文：
+
+```json
+{
+  "tag": "sup",
+  "text": "1",
+  "class": [],
+  "attribute": {
+    "data-type": "footnote",
+    "data-footnote": "脚注的文本"
+  }
+}
+```
+
 ### JSON 还原 HTML
 
 JSON 文档树可以直接还原为 HTML，不需要原 DOCX 或资源包：

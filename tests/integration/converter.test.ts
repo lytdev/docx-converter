@@ -67,6 +67,57 @@ describe('DOCX conversion', () => {
     const annotationNode = jsonNodes(json).find(node => node.attribute['data-type'] === 'annotation')!;
     expect(annotationNode.children.some(child => child.attribute['data-type'] === 'formula')).toBe(true);
   });
+  it('omits cursor-only Word comments that have no selected content', async () => {
+    const comments = `<w:comments ${ns}><w:comment w:id="4">${p(text('光标位置批注'))}</w:comment></w:comments>`;
+    const input = docx(
+      p('<w:commentRangeStart w:id="4"/><w:commentRangeEnd w:id="4"/>' + '<w:r><w:commentReference w:id="4"/></w:r>' + text('正文')),
+      {
+        rels: `<Relationship Id="comments" Type="${R}/comments" Target="comments.xml"/>`,
+        extra: { 'word/comments.xml': comments },
+      },
+    );
+    const [html, json] = await Promise.all([convertToHtml(input), convertToJson(input)]);
+    expect(html.warnings).toEqual([]);
+    expect(html.html).not.toContain('data-type="annotation"');
+    expect(jsonNodes(json).some(node => node.attribute['data-type'] === 'annotation')).toBe(false);
+    expect(json.elements[0].text).toBe('正文');
+  });
+  it('renders footnote references as superscripts with footnote content', async () => {
+    const footnotes = `<w:footnotes ${ns}><w:footnote w:type="separator" w:id="8">${p('<w:r><w:separator/></w:r>')}</w:footnote><w:footnote w:id="0">${p('<w:r><w:footnoteRef/></w:r>' + text(' 第一条脚注'))}</w:footnote><w:footnote w:id="1">${p('<w:r><w:footnoteRef/></w:r>' + text(' 第二条脚注'))}</w:footnote></w:footnotes>`;
+    const endnotes = `<w:endnotes ${ns}><w:endnote w:type="separator" w:id="0">${p('<w:r><w:separator/></w:r>')}</w:endnote></w:endnotes>`;
+    const input = docx(
+      p(text('前') + '<w:r><w:footnoteReference w:id="0"/></w:r>' + text('中') + '<w:r><w:footnoteReference w:id="1"/></w:r>' + text('后')),
+      {
+        rels: `<Relationship Id="footnotes" Type="${R}/footnotes" Target="footnotes.xml"/><Relationship Id="endnotes" Type="${R}/endnotes" Target="endnotes.xml"/>`,
+        extra: { 'word/footnotes.xml': footnotes, 'word/endnotes.xml': endnotes },
+      },
+    );
+    const [html, json] = await Promise.all([convertToHtml(input), convertToJson(input)]);
+    expect(html.warnings).toEqual([]);
+
+    const notes = elements(html.html, 'sup').filter(element => element.getAttribute('data-type') === 'footnote');
+    expect(notes.map(element => element.textContent)).toEqual(['1', '2']);
+    expect(notes.map(element => element.getAttribute('data-footnote'))).toEqual(['第一条脚注', '第二条脚注']);
+    expect(html.html.indexOf('前')).toBeLessThan(html.html.indexOf('<sup'));
+    expect(html.html.indexOf('中')).toBeGreaterThan(html.html.indexOf('</sup>'));
+
+    const noteNodes = jsonNodes(json).filter(node => node.attribute['data-type'] === 'footnote');
+    expect(noteNodes.map(node => node.text)).toEqual(['1', '2']);
+    expect(noteNodes.map(node => node.attribute['data-footnote'])).toEqual(['第一条脚注', '第二条脚注']);
+  });
+  it('uses circled footnote numbers when the document requests them', async () => {
+    const footnotes = `<w:footnotes ${ns}><w:footnote w:id="0">${p('<w:r><w:footnoteRef/></w:r>' + text(' 第一条脚注'))}</w:footnote><w:footnote w:id="1">${p('<w:r><w:footnoteRef/></w:r>' + text(' 第二条脚注'))}</w:footnote></w:footnotes>`;
+    const settings = `<w:settings ${ns}><w:footnotePr><w:numFmt w:val="decimalEnclosedCircle"/></w:footnotePr></w:settings>`;
+    const input = docx(
+      p('<w:r><w:footnoteReference w:id="0"/></w:r>' + text('正文') + '<w:r><w:footnoteReference w:id="1"/></w:r>'),
+      {
+        rels: `<Relationship Id="footnotes" Type="${R}/footnotes" Target="footnotes.xml"/><Relationship Id="settings" Type="${R}/settings" Target="settings.xml"/>`,
+        extra: { 'word/footnotes.xml': footnotes, 'word/settings.xml': settings },
+      },
+    );
+    const result = await convertToHtml(input);
+    expect(elements(result.html, 'sup').map(element => element.textContent)).toEqual(['①', '②']);
+  });
   it('exports page setup and theme metadata', async () => {
     const section = `<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1800" w:bottom="900" w:left="1080" w:header="720" w:footer="360" w:gutter="0"/></w:sectPr>`;
     const theme = `<a:theme xmlns:a="${A}" name="Office"><a:themeElements><a:clrScheme name="Office"><a:dk1><a:srgbClr val="000000"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:accent1><a:srgbClr val="4472C4"/></a:accent1></a:clrScheme><a:fontScheme name="Office"><a:majorFont><a:latin typeface="Calibri Light"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont><a:minorFont><a:latin typeface="Calibri"/><a:ea typeface="宋体"/><a:cs typeface="Arial"/></a:minorFont></a:fontScheme></a:themeElements></a:theme>`;

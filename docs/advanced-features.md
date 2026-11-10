@@ -139,7 +139,17 @@ LaTeX 是从 OLE/MTEF 重建的，不一定等于作者最初输入的源码。�
 </span>
 ```
 
-批注文字与文本样式会合并到同一个元素中，不会额外生成只承载样式的内层 `span`。批注范围跨多个文本样式或段落时，会按实际文本节点分别输出 `annotation-item` 元素。`data-annotation` 来自 `word/comments.xml` 中的批注正文。若公式、图片等内容自身已有 `data-type`，则保留原元素并在外层嵌套批注 `span`，避免属性冲突。
+批注文字与文本样式会合并到同一个元素中，不会额外生成只承载样式的内层 `span`。批注范围跨多个文本样式或段落时，会按实际文本节点分别输出 `annotation-item` 元素。`data-annotation` 来自 `word/comments.xml` 中的批注正文。若公式、图片等内容自身已有 `data-type`，则保留原元素并在外层嵌套批注 `span`，避免属性冲突。未选中文字、仅在光标位置插入的零长度批注暂不输出。
+
+## 脚注
+
+正文中的 `footnoteReference` 会转换为上标节点，编号按首次引用顺序生成，脚注正文来自 `word/footnotes.xml`：
+
+```html
+<sup data-type="footnote" data-footnote="脚注的文本">1</sup>
+```
+
+普通脚注输出阿拉伯数字；`footnotePr/numFmt` 为 `decimalEnclosedCircle`、`decimalEnclosedCircleChinese` 或 `ideographEnclosedCircle` 时，1 至 20 输出 `①` 至 `⑳`。`footnotePr/numStart` 可指定起始编号。转换结果只把脚注引用和正文写入行内标记，不生成 Word 页面底部的脚注分隔线或脚注区域。
 
 ## 原生图表、组合图形与 SmartArt
 

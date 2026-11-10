@@ -2,7 +2,7 @@ import type { Block, Paragraph } from '../../domain/document.js';
 import type { ConversionContext } from '../../contracts/ports.js';
 import { DocxError } from '../../contracts/errors.js';
 import type { PartReader } from '../../infrastructure/opc/part-reader.js';
-import { child, is } from '../../infrastructure/xml/dom.js';
+import { attr, child, descendants, is } from '../../infrastructure/xml/dom.js';
 import type { X } from '../../infrastructure/xml/dom.js';
 import { Styles } from '../styles/style-resolver.js';
 import { Numbering } from '../numbering/numbering-reader.js';
@@ -14,6 +14,7 @@ import { DrawingParser } from './drawing-parser.js';
 import { TableParser } from './table-parser.js';
 import { readDocumentMetadata } from './document-metadata.js';
 import { readCommentAnnotations } from './comment-reader.js';
+import { readFootnotes } from './footnote-reader.js';
 
 /** Coordinates document flow; feature parsers own their own algorithms. */
 export class DocumentParser {
@@ -23,7 +24,8 @@ export class DocumentParser {
 
   constructor(source: PartReader, operations: ConversionContext) {
     this.context = { source, operations, styles: new Styles(source, operations), numbering: new Numbering(source),
-      annotations: readCommentAnnotations(source), stats: { paragraphs: 0, tables: 0, images: 0, formulas: 0 }, resources: new Set() };
+      annotations: readCommentAnnotations(source), footnotes: readFootnotes(source),
+      stats: { paragraphs: 0, tables: 0, images: 0, formulas: 0 }, resources: new Set() };
     const drawings = new DrawingParser(this.context, parent => contentElements(parent, operations)
       .filter(el => is(el, 'p')).map(el => this.paragraph(el)));
     this.inlines = new InlineParser(this.context, drawings);
@@ -42,8 +44,9 @@ export class DocumentParser {
       this.context.operations.progress({ stage: 'parsing', completed: i + 1, total: items.length });
     }
     for (const r of this.context.source.relationships(this.context.source.main).values()) {
-      if (['header', 'footer', 'footnotes', 'endnotes'].some(t => r.type.endsWith(`/${t}`)))
-        this.context.operations.warn('UNSUPPORTED_PART', `当前正文转换不包含 ${r.type.split('/').pop()} 部件`);
+      const kind = ['header', 'footer', 'endnotes'].find(t => r.type.endsWith(`/${t}`));
+      if (!kind || (kind === 'endnotes' && !this.hasEndnotes(r.target))) continue;
+      this.context.operations.warn('UNSUPPORTED_PART', `当前正文转换不包含 ${kind} 部件`);
     }
     return {
       document: { blocks },
@@ -58,5 +61,13 @@ export class DocumentParser {
   }
   private paragraph(el: X): Paragraph {
     return parseParagraph(el, this.context, (node, style) => this.inlines.parse(node, style));
+  }
+  private hasEndnotes(target: string): boolean {
+    const path = this.context.source.resolve(this.context.source.main, target);
+    const root = this.context.source.xml(path)?.documentElement;
+    return descendants(root, 'endnote').some(note => {
+      const type = attr(note, 'type');
+      return type === undefined || type === 'normal';
+    });
   }
 }

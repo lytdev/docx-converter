@@ -35,7 +35,8 @@ export interface MathNode extends Annotated {
   attributes?: HtmlAttributes;
 }
 export interface LinkNode extends Annotated { kind: 'link'; url: string; children: Inline[]; }
-export type Inline = TextNode | ImageNode | MathNode | LinkNode
+export interface FootnoteNode extends Annotated { kind: 'footnote'; number: string; text: string; }
+export type Inline = TextNode | ImageNode | MathNode | LinkNode | FootnoteNode
   | ({ kind: 'break' } & Annotated)
   | ({ kind: 'anchor'; id: string } & Annotated)
   | ({ kind: 'unsupported'; label: string } & Annotated);

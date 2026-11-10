@@ -7,9 +7,14 @@ import { attr, child, children, descendants, is, NS } from '../../infrastructure
 import type { X } from '../../infrastructure/xml/dom.js';
 import type { ParseContext } from './parse-context.js';
 import { GROUP_NS, SHAPE_NS } from './group-drawing-parser.js';
+import { formatFootnoteNumber } from './footnote-reader.js';
 export class InlineParser {
   private readonly openAnnotations = new Set<string>();
-  constructor(private readonly context: ParseContext, private readonly drawings: DrawingParser) {}
+  private readonly footnoteNumbers = new Map<string, number>();
+  private nextFootnoteNumber: number;
+  constructor(private readonly context: ParseContext, private readonly drawings: DrawingParser) {
+    this.nextFootnoteNumber = context.footnotes.numberStart;
+  }
   parse(el: X, inherited: RunStyle): Inline[] {
     return children(el).flatMap(n => this.inline(n, inherited));
   }
@@ -29,6 +34,22 @@ export class InlineParser {
       const id = attr(el, 'id');
       if (id !== undefined) this.openAnnotations.delete(id);
       return [];
+    }
+    if (is(el, 'footnoteReference')) {
+      const id = attr(el, 'id');
+      if (id === undefined) return [];
+      let number = this.footnoteNumbers.get(id);
+      if (number === undefined) {
+        number = this.nextFootnoteNumber++;
+        this.footnoteNumbers.set(id, number);
+      }
+      const text = this.context.footnotes.entries.get(id);
+      if (text === undefined) this.context.operations.warn('MISSING_FOOTNOTE', `未找到脚注内容 ${id}`);
+      return this.annotate([{
+        kind: 'footnote',
+        number: formatFootnoteNumber(number, this.context.footnotes.numberFormat),
+        text: text ?? '',
+      }]);
     }
     if (is(el, 'hyperlink')) {
       const id = attr(el, 'id', NS.r), anchor = attr(el, 'anchor');
@@ -88,6 +109,7 @@ export class InlineParser {
     return this.parse(el, inherited);
   }
 
+  // Zero-length cursor comments leave no node between the range markers, so they are intentionally omitted.
   private annotate(nodes: Inline[]): Inline[] {
     if (!this.openAnnotations.size) return nodes;
     const annotations: Annotation[] = [...this.openAnnotations]

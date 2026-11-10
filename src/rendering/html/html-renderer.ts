@@ -109,6 +109,7 @@ export class HtmlRenderer {
       else if (n.kind === 'anchor') rendered = `<a id="${esc(n.id)}"></a>`;
       else if (n.kind === 'unsupported') rendered = `<span class="unsupported-content">${esc(n.label)}</span>`;
       else if (n.kind === 'image') rendered = await this.images.render(n, inlineImage);
+      else if (n.kind === 'footnote') rendered = `<sup data-type="footnote" data-footnote="${esc(n.text)}">${esc(n.number)}</sup>`;
       else if (n.kind === 'math') rendered = this.options.formulaOutput === 'mathml'
         ? `<span class="formula-item" data-type="formula"${n.latex !== undefined ? ` data-latex="${esc(n.latex)}"` : ''}>${n.mathml}</span>`
         : await renderMathImage(n, this.context, this.options.generatedImageOutput ?? 'png');
