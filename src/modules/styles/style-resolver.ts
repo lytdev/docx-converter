@@ -3,7 +3,7 @@ import type { DiagnosticSink } from '../../contracts/ports.js';
 import type { PartReader } from '../../infrastructure/opc/part-reader.js';
 import { attr, bool, child, children, descendants, is, NS, number, val } from '../../infrastructure/xml/dom.js';
 import type { X } from '../../infrastructure/xml/dom.js';
-import { color, pt } from '../../shared/units.js';
+import { color, pt, round2 } from '../../shared/units.js';
 interface Style { id: string; parent?: string; type?: string; run: RunStyle; para: ParaStyle; table?: X; }
 const cleanFont = (s?: string): string | undefined => s?.replace(/[;{}<>\r\n\\]/g, '').slice(0, 150) || undefined;
 
@@ -134,14 +134,14 @@ export class Styles {
       const v = attr(ind, keys[0]) ?? attr(ind, keys[1]); if (v !== undefined) css[key] = pt(number(v) / 20);
     }
     const firstChars = attr(ind, 'firstLineChars'), hangingChars = attr(ind, 'hangingChars');
-    if (hangingChars !== undefined) css['text-indent'] = `${-number(hangingChars) / 100}em`;
-    else if (firstChars !== undefined) css['text-indent'] = `${number(firstChars) / 100}em`;
+    if (hangingChars !== undefined) css['text-indent'] = `${round2(-number(hangingChars) / 100)}em`;
+    else if (firstChars !== undefined) css['text-indent'] = `${round2(number(firstChars) / 100)}em`;
     else if (attr(ind, 'hanging') !== undefined) css['text-indent'] = pt(-number(attr(ind, 'hanging')) / 20);
     else if (attr(ind, 'firstLine') !== undefined) css['text-indent'] = pt(number(attr(ind, 'firstLine')) / 20);
     const spacing = child(pr, 'spacing');
     for (const [a, k] of [['before', 'margin-top'], ['after', 'margin-bottom']]) if (attr(spacing, a) !== undefined) css[k] = pt(number(attr(spacing, a)) / 20);
     const line = attr(spacing, 'line');
-    if (line !== undefined) css['line-height'] = attr(spacing, 'lineRule') === 'auto' || !attr(spacing, 'lineRule') ? String(number(line) / 240) : pt(number(line) / 20);
+    if (line !== undefined) css['line-height'] = attr(spacing, 'lineRule') === 'auto' || !attr(spacing, 'lineRule') ? String(round2(number(line) / 240)) : pt(number(line) / 20);
     const num = child(pr, 'numPr');
     if (val(child(num, 'numId')) !== undefined) out.numId = val(child(num, 'numId'));
     if (val(child(num, 'ilvl')) !== undefined) out.level = Math.min(8, Math.max(0, number(val(child(num, 'ilvl')))));

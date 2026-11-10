@@ -63,6 +63,24 @@ export function presetGeometry(geometry: string, width: number, height: number, 
       }
       return path(polygon(width, height, points));
     }
+    case 'star12': {
+      const points: [number, number][] = [];
+      for (let index = 0; index < 24; index++) {
+        const angle = -Math.PI / 2 + index * Math.PI / 12;
+        const radius = index % 2 ? .22 : .5;
+        points.push([clamp(.5 + Math.cos(angle) * radius), clamp(.5 + Math.sin(angle) * radius)]);
+      }
+      return path(polygon(width, height, points));
+    }
+    case 'upArrowCallout': {
+      const bodyTop = height * .35;
+      const bodyHeight = height - bodyTop;
+      const tailHalf = Math.min(width * .16, height * .38);
+      const rx = Math.min(width, bodyHeight) / 6;
+      const body = shape('rect', `y="${bodyTop}" width="${width}" height="${bodyHeight}" rx="${rx}"`);
+      const tip = path(`M${width / 2 - tailHalf} ${bodyTop}L${width / 2} 0L${width / 2 + tailHalf} ${bodyTop}Z`);
+      return `<g>${body}${tip}</g>`;
+    }
     case 'pieWedge':
       return path(`M${width} ${height}L0 ${height}A${width} ${height} 0 0 1 ${width} 0Z`);
     default:

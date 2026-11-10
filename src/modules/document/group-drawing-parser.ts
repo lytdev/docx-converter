@@ -1,10 +1,11 @@
-import { attr, child, children, descendants, NS, type X } from '../../infrastructure/xml/dom.js';
+import { attr, child, children, descendants, NS, number, type X } from '../../infrastructure/xml/dom.js';
 import { esc } from '../../shared/markup.js';
 import type { ImageNode } from '../../domain/document.js';
+import type { ParseContext } from './parse-context.js';
 import { presetGeometry } from './preset-geometry.js';
 
 export const GROUP_NS = 'http://schemas.microsoft.com/office/word/2010/wordprocessingGroup';
-const SHAPE_NS = 'http://schemas.microsoft.com/office/word/2010/wordprocessingShape';
+export const SHAPE_NS = 'http://schemas.microsoft.com/office/word/2010/wordprocessingShape';
 const a = (e: X | undefined, name: string) => child(e, name, NS.a);
 const n = (e: X | undefined, name: string, fallback = 0) => {
   const value = e?.getAttribute(name);
@@ -13,11 +14,59 @@ const n = (e: X | undefined, name: string, fallback = 0) => {
   return result;
 };
 const px = (e: X | undefined, name: string, fallback = 0) => n(e, name, fallback) / 9525;
+const numberAttr = (e: X | undefined, name: string, fallback = 0) => number(e?.getAttribute(name) ?? undefined, fallback);
 function paint(e: X | undefined, fallback: string): string {
   if (a(e, 'noFill')) return 'none';
   const fill = a(e, 'solidFill');
   const value = a(fill, 'srgbClr')?.getAttribute('val') ?? a(fill, 'sysClr')?.getAttribute('lastClr');
   return value && /^[a-f\d]{6}$/i.test(value) ? `#${value}` : fallback;
+}
+function schemeColor(container: X | undefined, context: ParseContext): string | undefined {
+  if (!container) return;
+  const scheme = a(container, 'schemeClr');
+  const schemeName = scheme?.getAttribute('val');
+  let color = schemeName ? context.styles.themeColor(schemeName) : undefined;
+  if (!color) {
+    const srgb = a(container, 'srgbClr')?.getAttribute('val');
+    if (srgb && /^[0-9a-f]{6}$/i.test(srgb)) color = `#${srgb}`;
+  }
+  if (!color) return;
+  const lum = numberAttr(a(scheme, 'lumMod'), 'val', 100000) / 100000;
+  if (!(lum > 0 && lum < 1)) return color;
+  const value = Number.parseInt(color.slice(1), 16);
+  const channel = (shift: number) => Math.max(0, Math.min(255, Math.round(((value >> shift) & 255) * lum)));
+  return `#${[channel(16), channel(8), channel(0)].map(v => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function renderShapeText(el: X, w: number, h: number, scaleX: number, scaleY: number, labels: string[]): string {
+  const body = child(el, 'bodyPr', SHAPE_NS);
+  const box = descendants(el, 'txbxContent')[0];
+  const lines: { text: string; size: number; align: string }[] = [];
+  const left = px(body, 'lIns', 91440) * scaleX, right = px(body, 'rIns', 91440) * scaleX;
+  for (const p of children(box).filter(c => c.namespaceURI === NS.w && c.localName === 'p')) {
+    const size = Math.min(200, Math.max(1, Number(attr(descendants(p, 'sz')[0], 'val') ?? 21) * 2 / 3));
+    if (!Number.isFinite(size)) throw new Error('Invalid text size');
+    const align = attr(child(child(p, 'pPr'), 'jc'), 'val') ?? 'left';
+    const text = descendants(p, 't').map(t => t.textContent ?? '').join('');
+    labels.push(text);
+    const available = Math.max(size, w * scaleX - left - right);
+    let line = '', used = 0;
+    for (const char of text) {
+      const advance = size * (/[\u0000-\u00ff]/.test(char) ? .5 : 1);
+      if (used + advance > available && line) { lines.push({ text: line, size, align }); line = ''; used = 0; }
+      line += char; used += advance;
+    }
+    lines.push({ text: line, size, align });
+  }
+  const total = lines.reduce((sum, l) => sum + l.size * 1.4, 0);
+  const anchor = body?.getAttribute('anchor');
+  let baseline = anchor === 'ctr' ? (h * scaleY - total) / 2 : anchor === 'b' ? h * scaleY - px(body, 'bIns', 45720) * scaleY - total : px(body, 'tIns', 45720) * scaleY;
+  const text = lines.map(l => {
+    baseline += l.size * 1.4;
+    const center = l.align === 'center', end = l.align === 'right';
+    return `<text x="${center ? w * scaleX / 2 : end ? w * scaleX - right : left}" y="${baseline - l.size * .25}" font-size="${l.size}" text-anchor="${center ? 'middle' : end ? 'end' : 'start'}">${esc(l.text)}</text>`;
+  }).join('');
+  return text;
 }
 
 /** Conservative vector renderer for grouped Word shapes and straight connectors. */
@@ -63,33 +112,7 @@ export function parseGroupDrawing(root: X, width: number, height: number): Image
         return `<g transform="translate(${x} ${y})"><path d="M${x1} ${y1}L${x2} ${y2}" fill="none" ${style}/>${arrow('headEnd', x1, y1, x2, y2)}${arrow('tailEnd', x2, y2, x1, y1)}</g>`;
       }
       const shape = presetGeometry(geom, w, h, `fill="${fill}" ${style}`);
-      const body = child(el, 'bodyPr', SHAPE_NS);
-      const box = descendants(el, 'txbxContent')[0];
-      const lines: { text: string; size: number; align: string }[] = [];
-      const left = px(body, 'lIns', 91440) * scaleX, right = px(body, 'rIns', 91440) * scaleX;
-      for (const p of children(box).filter(c => c.namespaceURI === NS.w && c.localName === 'p')) {
-        const size = Math.min(200, Math.max(1, Number(attr(descendants(p, 'sz')[0], 'val') ?? 21) * 2 / 3));
-        if (!Number.isFinite(size)) throw new Error('Invalid text size');
-        const align = attr(child(child(p, 'pPr'), 'jc'), 'val') ?? 'left';
-        const text = descendants(p, 't').map(t => t.textContent ?? '').join('');
-        labels.push(text);
-        const available = Math.max(size, w * scaleX - left - right);
-        let line = '', used = 0;
-        for (const char of text) {
-          const advance = size * (/[\u0000-\u00ff]/.test(char) ? .5 : 1);
-          if (used + advance > available && line) { lines.push({ text: line, size, align }); line = ''; used = 0; }
-          line += char; used += advance;
-        }
-        lines.push({ text: line, size, align });
-      }
-      const total = lines.reduce((sum, l) => sum + l.size * 1.4, 0);
-      const anchor = body?.getAttribute('anchor');
-      let baseline = anchor === 'ctr' ? (h * scaleY - total) / 2 : anchor === 'b' ? h * scaleY - px(body, 'bIns', 45720) * scaleY - total : px(body, 'tIns', 45720) * scaleY;
-      const text = lines.map(l => {
-        baseline += l.size * 1.4;
-        const center = l.align === 'center', end = l.align === 'right';
-        return `<text x="${center ? w * scaleX / 2 : end ? w * scaleX - right : left}" y="${baseline - l.size * .25}" font-size="${l.size}" text-anchor="${center ? 'middle' : end ? 'end' : 'start'}">${esc(l.text)}</text>`;
-      }).join('');
+      const text = renderShapeText(el, w, h, scaleX, scaleY, labels);
       const rotation = n(xf, 'rot') / 60000;
       const painted = `<g transform="translate(${x} ${y})">${rotation ? `<g transform="rotate(${rotation} ${w / 2} ${h / 2})">${shape}</g>` : shape}<g transform="scale(${1 / scaleX} ${1 / scaleY})" font-family="SimSun,serif" fill="#000000">${text}</g></g>`;
       return painted;
@@ -97,5 +120,39 @@ export function parseGroupDrawing(root: X, width: number, height: number): Image
     const content = render(root, 1, 1);
     const generatedSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width + 4}" height="${height + 4}" viewBox="-2 -2 ${width + 4} ${height + 4}">${content}</svg>`;
     return { kind: 'image', alt: labels.join('；') || '组合图形', formula: false, width: width + 4, height: height + 4, css: {}, generatedSvg, generatedKind: 'drawing' };
+  } catch { return; }
+}
+
+/** Renders a standalone Word AutoShape (wps:wsp) as a generated drawing image. */
+export function parseShapeDrawing(root: X, context: ParseContext, width: number, height: number): ImageNode | undefined {
+  try {
+    if (!(width > 0 && height > 0) || width > 20000 || height > 20000) return;
+    if (root.namespaceURI !== SHAPE_NS || root.localName !== 'wsp') return;
+    const pr = child(root, 'spPr', SHAPE_NS), xf = a(pr, 'xfrm'), geom = a(pr, 'prstGeom')?.getAttribute('prst');
+    if (!geom) return;
+    const w = px(a(xf, 'ext'), 'cx'), h = px(a(xf, 'ext'), 'cy');
+    if (!(w > 0 && h > 0)) return;
+    const ln = a(pr, 'ln'), style = child(root, 'style', SHAPE_NS);
+    const explicit = (container: X | undefined) => a(a(container, 'solidFill'), 'srgbClr')?.getAttribute('val') ?? a(a(container, 'solidFill'), 'sysClr')?.getAttribute('lastClr');
+    const fill = (() => {
+      if (a(pr, 'noFill')) return 'none';
+      const value = explicit(pr);
+      if (value && /^[a-f\d]{6}$/i.test(value)) return `#${value}`;
+      return schemeColor(a(style, 'fillRef'), context) ?? schemeColor(a(pr, 'solidFill'), context) ?? '#FFFFFF';
+    })();
+    const stroke = (() => {
+      const value = explicit(ln);
+      if (value && /^[a-f\d]{6}$/i.test(value)) return `#${value}`;
+      return schemeColor(a(ln, 'solidFill'), context) ?? schemeColor(a(style, 'lnRef'), context) ?? '#000000';
+    })();
+    const strokeWidth = px(ln, 'w', 12700);
+    const paintStyle = `fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" vector-effect="non-scaling-stroke"`;
+    const shape = presetGeometry(geom, w, h, paintStyle);
+    const labels: string[] = [];
+    const text = renderShapeText(root, w, h, 1, 1, labels);
+    const rotation = n(xf, 'rot') / 60000;
+    const content = `${rotation ? `<g transform="rotate(${rotation} ${w / 2} ${h / 2})">${shape}</g>` : shape}<g font-family="SimSun,serif" fill="#000000">${text}</g>`;
+    const generatedSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${content}</svg>`;
+    return { kind: 'image', alt: labels.join('；') || '形状', formula: false, width: w, height: h, css: {}, generatedSvg, generatedKind: 'drawing' };
   } catch { return; }
 }

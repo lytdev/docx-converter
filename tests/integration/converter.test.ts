@@ -45,6 +45,17 @@ describe('DOCX conversion', () => {
     const withoutTitleOption = await convertToJson(docx(p(text('核心标题')), { core }));
     expect(withoutTitleOption.meta.title).toBe('核心标题');
   });
+  it('rounds computed CSS decimals to at most two places', async () => {
+    const body = p(text('行高与边距'), '<w:spacing w:before="353.333333333333" w:line="413" w:lineRule="auto"/>');
+    const r = await convertToHtml(docx(body));
+    const style = elements(r.html, 'p')[0].getAttribute('style') ?? '';
+    expect(style).toContain('line-height:1.72');
+    expect(style).toContain('margin-top:17.67pt');
+  });
+  it('keeps integer computed values without trailing decimals', async () => {
+    const r = await convertToHtml(docx(p(text('缩进'), '<w:ind w:firstLineChars="200"/>')));
+    expect(elements(r.html, 'p')[0].getAttribute('style')).toContain('text-indent:2em');
+  });
   it('exports the same parsed paragraphs, nested tables and formula as a JSON-safe document tree', async () => {
     const formula = `<m:oMath><m:f><m:num>${mt('x')}</m:num><m:den>${mt('2')}</m:den></m:f></m:oMath>`;
     const input = docx(p(text('intro') + formula) + `<w:tbl><w:tr><w:tc>${p(text('cell'))}</w:tc></w:tr></w:tbl>`);

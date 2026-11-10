@@ -3,7 +3,7 @@ import { attr, descendants, NS, number } from '../../infrastructure/xml/dom.js';
 import type { X } from '../../infrastructure/xml/dom.js';
 import type { ParseContext } from './parse-context.js';
 import { CHART_NS, parseChart } from './chart-parser.js';
-import { GROUP_NS, parseGroupDrawing } from './group-drawing-parser.js';
+import { GROUP_NS, SHAPE_NS, parseGroupDrawing, parseShapeDrawing } from './group-drawing-parser.js';
 import { DIAGRAM_NS, parseSmartArt } from './diagram-parser.js';
 export class DrawingParser {
   constructor(private readonly context: ParseContext, private readonly parseParagraphs: (parent: X) => Paragraph[]) {}
@@ -15,6 +15,14 @@ export class DrawingParser {
       if (image) { this.context.stats.images++; return [image]; }
       this.context.operations.warn('UNSUPPORTED_GROUP_DRAWING', '组合图形含暂不支持的结构，已保留可读取的文字');
       return descendants(group, 'txbxContent').flatMap(box => this.parseParagraphs(box).flatMap(p => [...p.children, { kind: 'break' as const }]));
+    }
+    const standaloneShape = descendants(el, 'wsp', SHAPE_NS)[0];
+    if (standaloneShape) {
+      const extent = descendants(el, 'extent', NS.wp)[0];
+      const image = parseShapeDrawing(standaloneShape, this.context, number(extent?.getAttribute('cx') ?? undefined) / 9525, number(extent?.getAttribute('cy') ?? undefined) / 9525);
+      if (image) { this.context.stats.images++; return [image]; }
+      this.context.operations.warn('UNSUPPORTED_SHAPE', '独立绘图形状暂不支持生成图片，已保留可读取的文字');
+      return descendants(el, 'txbxContent').flatMap(box => this.parseParagraphs(box).flatMap(p => [...p.children, { kind: 'break' as const }]));
     }
     const smartArt = descendants(el, 'relIds', DIAGRAM_NS)[0];
     if (smartArt) {

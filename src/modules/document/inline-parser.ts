@@ -6,7 +6,7 @@ import type { DrawingParser } from './drawing-parser.js';
 import { attr, child, children, descendants, is, NS } from '../../infrastructure/xml/dom.js';
 import type { X } from '../../infrastructure/xml/dom.js';
 import type { ParseContext } from './parse-context.js';
-import { GROUP_NS } from './group-drawing-parser.js';
+import { GROUP_NS, SHAPE_NS } from './group-drawing-parser.js';
 export class InlineParser {
   constructor(private readonly context: ParseContext, private readonly drawings: DrawingParser) {}
   parse(el: X, inherited: RunStyle): Inline[] {
@@ -57,7 +57,7 @@ export class InlineParser {
     if (is(el, 'AlternateContent', NS.mc)) {
       const choices = children(el).filter(e => e.namespaceURI === NS.mc);
       // Prefer a branch with a raster image or OMML; don't duplicate Choice and Fallback.
-      const supported = choices.find(e => descendants(e, 'wgp', GROUP_NS).length)
+      const supported = choices.find(e => descendants(e, 'wgp', GROUP_NS).length || descendants(e, 'wsp', SHAPE_NS).length)
         ?? choices.find(e => descendants(e, 'blip', NS.a).length || descendants(e, 'oMath', NS.m).length)
         ?? child(el, 'Fallback', NS.mc) ?? choices[0];
       return supported ? this.parse(supported, inherited) : [];
