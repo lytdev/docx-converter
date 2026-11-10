@@ -1,4 +1,4 @@
-import type { Block, DocumentMetadata, DocumentModel, Inline, Paragraph, Table } from '../../domain/document.js';
+import type { Annotation, Block, DocumentMetadata, DocumentModel, Inline, Paragraph, Table } from '../../domain/document.js';
 import type { ConversionOptions } from '../../contracts/conversion.js';
 import type { RenderContext, ResourceReader } from '../../contracts/ports.js';
 import { esc, safeUrl } from '../../shared/markup.js';
@@ -78,8 +78,13 @@ export class HtmlRenderer {
     return html + '</tbody></table>';
   }
   private async inlines(nodes: Inline[]): Promise<string> {
-    let html = '', pendingStyle: string | undefined, pendingText = '';
-    const flush = () => { if (pendingText) html += `<span${pendingStyle}>${esc(pendingText)}</span>`; pendingStyle = undefined; pendingText = ''; };
+    let html = '', pendingStyle: string | undefined, pendingAnnotations: Annotation[] | undefined, pendingText = '';
+    const flush = () => {
+      if (pendingText) html += this.textSpan(pendingText, pendingStyle, pendingAnnotations);
+      pendingStyle = undefined;
+      pendingAnnotations = undefined;
+      pendingText = '';
+    };
     const inlineImage = nodes.some(n => n.kind === 'text' && n.text.trim() || n.kind === 'link');
     for (const n of nodes) {
       if (n.kind === 'text') {
@@ -92,26 +97,51 @@ export class HtmlRenderer {
           const css = textCss(n.style, segment.east);
           css['white-space'] = 'pre-wrap';
           const key = styleAttr(css);
-          if (pendingStyle !== key) flush();
+          if (pendingStyle !== key || !sameAnnotations(pendingAnnotations, n.annotations)) flush();
           pendingStyle = key; pendingText += segment.text;
+          pendingAnnotations = n.annotations;
         }
         continue;
       }
       flush();
-      if (n.kind === 'break') html += '<br>';
-      else if (n.kind === 'anchor') html += `<a id="${esc(n.id)}"></a>`;
-      else if (n.kind === 'unsupported') html += `<span class="unsupported-content">${esc(n.label)}</span>`;
-      else if (n.kind === 'image') html += await this.images.render(n, inlineImage);
-      else if (n.kind === 'math') html += this.options.formulaOutput === 'mathml'
+      let rendered = '';
+      if (n.kind === 'break') rendered = '<br>';
+      else if (n.kind === 'anchor') rendered = `<a id="${esc(n.id)}"></a>`;
+      else if (n.kind === 'unsupported') rendered = `<span class="unsupported-content">${esc(n.label)}</span>`;
+      else if (n.kind === 'image') rendered = await this.images.render(n, inlineImage);
+      else if (n.kind === 'math') rendered = this.options.formulaOutput === 'mathml'
         ? `<span class="formula-item" data-type="formula"${n.latex !== undefined ? ` data-latex="${esc(n.latex)}"` : ''}>${n.mathml}</span>`
         : await renderMathImage(n, this.context, this.options.generatedImageOutput ?? 'png');
       else if (n.kind === 'link') {
         const url = safeUrl(n.url), content = await this.inlines(n.children);
-        if (!url) { if (n.url) this.context.warn('UNSAFE_LINK', '已移除不安全的超链接地址'); html += content; }
-        else html += `<a href="${esc(url)}" rel="noopener noreferrer" style="color:#0563c1;text-decoration:underline">${content}</a>`;
+        if (!url) { if (n.url) this.context.warn('UNSAFE_LINK', '已移除不安全的超链接地址'); rendered = content; }
+        else rendered = `<a href="${esc(url)}" rel="noopener noreferrer" style="color:#0563c1;text-decoration:underline">${content}</a>`;
       }
+      html += this.wrapAnnotations(rendered, n.annotations);
     }
     flush(); return html;
   }
 
+  private wrapAnnotations(html: string, annotations?: Annotation[]): string {
+    return (annotations ?? []).reduceRight((content, annotation) =>
+      `<span class="annotation-item" data-type="annotation" data-annotation="${esc(annotation.text)}">${content}</span>`, html);
+  }
+
+  private textSpan(text: string, style?: string, annotations?: Annotation[]): string {
+    const content = esc(text);
+    const [annotation, ...nested] = annotations ?? [];
+    if (!annotation) return `<span${style}>${content}</span>`;
+    // Text spans have no data-type of their own. Images, formulas and other
+    // typed nodes are wrapped below so their existing data-type is preserved.
+    return this.wrapAnnotations(
+      `<span class="annotation-item" data-type="annotation" data-annotation="${esc(annotation.text)}"${style}>${content}</span>`,
+      nested,
+    );
+  }
+}
+
+function sameAnnotations(a?: Annotation[], b?: Annotation[]): boolean {
+  if (!a?.length && !b?.length) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  return a.every((annotation, index) => annotation.id === b[index].id && annotation.text === b[index].text);
 }

@@ -1,4 +1,4 @@
-import type { Inline, RunStyle } from '../../domain/document.js';
+import type { Annotation, Inline, RunStyle } from '../../domain/document.js';
 import { convertMath } from '../math/omml-converter.js';
 import { oleEquationLatex } from '../math/ole-equation.js';
 import { previewConflicts } from '../math/preview-consistency.js';
@@ -8,17 +8,28 @@ import type { X } from '../../infrastructure/xml/dom.js';
 import type { ParseContext } from './parse-context.js';
 import { GROUP_NS, SHAPE_NS } from './group-drawing-parser.js';
 export class InlineParser {
+  private readonly openAnnotations = new Set<string>();
   constructor(private readonly context: ParseContext, private readonly drawings: DrawingParser) {}
   parse(el: X, inherited: RunStyle): Inline[] {
     return children(el).flatMap(n => this.inline(n, inherited));
   }
   private inline(el: X, inherited: RunStyle): Inline[] {
     if (is(el, 'r')) return this.parse(el, this.context.styles.run(child(el, 'rPr'), inherited));
-    if (is(el, 't')) return [{ kind: 'text', text: el.textContent ?? '', style: { ...inherited } }];
-    if (is(el, 'tab')) return [{ kind: 'text', text: '\t', style: { ...inherited } }];
+    if (is(el, 't')) return this.annotate([{ kind: 'text', text: el.textContent ?? '', style: { ...inherited } }]);
+    if (is(el, 'tab')) return this.annotate([{ kind: 'text', text: '\t', style: { ...inherited } }]);
     if (is(el, 'br') || is(el, 'cr')) return [{ kind: 'break' }];
-    if (is(el, 'noBreakHyphen')) return [{ kind: 'text', text: '‑', style: { ...inherited } }];
-    if (is(el, 'softHyphen')) return [{ kind: 'text', text: '\u00ad', style: { ...inherited } }];
+    if (is(el, 'noBreakHyphen')) return this.annotate([{ kind: 'text', text: '‑', style: { ...inherited } }]);
+    if (is(el, 'softHyphen')) return this.annotate([{ kind: 'text', text: '\u00ad', style: { ...inherited } }]);
+    if (is(el, 'commentRangeStart')) {
+      const id = attr(el, 'id');
+      if (id !== undefined && this.context.annotations.has(id)) this.openAnnotations.add(id);
+      return [];
+    }
+    if (is(el, 'commentRangeEnd')) {
+      const id = attr(el, 'id');
+      if (id !== undefined) this.openAnnotations.delete(id);
+      return [];
+    }
     if (is(el, 'hyperlink')) {
       const id = attr(el, 'id', NS.r), anchor = attr(el, 'anchor');
       const rel = id ? this.context.source.relationships(this.context.source.main).get(id) : undefined;
@@ -29,9 +40,9 @@ export class InlineParser {
     }
     if (is(el, 'oMath', NS.m) || is(el, 'oMathPara', NS.m)) {
       this.context.stats.formulas++;
-      return [convertMath(el, this.context.operations, is(el, 'oMathPara', NS.m), inherited)];
+      return this.annotate([convertMath(el, this.context.operations, is(el, 'oMathPara', NS.m), inherited)]);
     }
-    if (is(el, 'drawing') || is(el, 'pict')) return this.drawings.parse(el, false);
+    if (is(el, 'drawing') || is(el, 'pict')) return this.annotate(this.drawings.parse(el, false));
     if (is(el, 'object')) {
       const ole = descendants(el, 'OLEObject', NS.o)[0];
       const id = attr(ole, 'id', NS.r);
@@ -52,7 +63,7 @@ export class InlineParser {
           else image.latex = latex;
         }
       } else this.context.operations.warn('OLE_OBJECT', '嵌入对象只显示文档中的预览图，不执行 OLE');
-      return images.length ? images : [{ kind: 'unsupported', label: formula ? '[旧版公式：无可用预览]' : '[嵌入对象：无可用预览]' }];
+      return this.annotate(images.length ? images : [{ kind: 'unsupported', label: formula ? '[旧版公式：无可用预览]' : '[嵌入对象：无可用预览]' }]);
     }
     if (is(el, 'AlternateContent', NS.mc)) {
       const choices = children(el).filter(e => e.namespaceURI === NS.mc);
@@ -70,11 +81,22 @@ export class InlineParser {
     if (is(el, 'sym')) {
       const code = attr(el, 'char'), font = attr(el, 'font');
       this.context.operations.warn('SYMBOL_FONT', '符号字体字符需本机安装对应字体，请核对显示效果');
-      return code && /^[\da-f]{1,6}$/i.test(code) && parseInt(code, 16) <= 0x10ffff ? [{ kind: 'text', text: String.fromCodePoint(parseInt(code, 16)), style: { ...inherited, latin: font } }] : [];
+      return code && /^[\da-f]{1,6}$/i.test(code) && parseInt(code, 16) <= 0x10ffff ? this.annotate([{ kind: 'text', text: String.fromCodePoint(parseInt(code, 16)), style: { ...inherited, latin: font } }]) : [];
     }
-    if (['pPr', 'rPr', 'bookmarkEnd', 'proofErr', 'lastRenderedPageBreak', 'commentRangeStart', 'commentRangeEnd', 'permStart', 'permEnd'].includes(el.localName ?? '')) return [];
+    if (['pPr', 'rPr', 'bookmarkEnd', 'proofErr', 'lastRenderedPageBreak', 'commentReference', 'permStart', 'permEnd'].includes(el.localName ?? '')) return [];
     this.context.operations.warn('UNSUPPORTED_INLINE', `未完整支持的行内结构：${el.localName}`);
     return this.parse(el, inherited);
+  }
+
+  private annotate(nodes: Inline[]): Inline[] {
+    if (!this.openAnnotations.size) return nodes;
+    const annotations: Annotation[] = [...this.openAnnotations]
+      .flatMap(id => {
+        const text = this.context.annotations.get(id);
+        return text === undefined ? [] : [{ id, text }];
+      });
+    if (!annotations.length) return nodes;
+    return nodes.map(node => ({ ...node, annotations }));
   }
 
 }

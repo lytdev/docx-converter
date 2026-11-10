@@ -1,5 +1,12 @@
 export type Css = Record<string, string>;
 export type HtmlAttributes = Record<string, string>;
+export interface Annotation {
+  id: string;
+  text: string;
+}
+interface Annotated {
+  annotations?: Annotation[];
+}
 export interface RunStyle {
   latin?: string; eastAsia?: string; size?: number; color?: string;
   bold?: boolean; italic?: boolean; underline?: boolean; strike?: boolean;
@@ -8,8 +15,8 @@ export interface RunStyle {
 export interface ParaStyle {
   css: Css; outline?: number; numId?: string; level?: number;
 }
-export interface TextNode { kind: 'text'; text: string; style: RunStyle; }
-export interface ImageNode {
+export interface TextNode extends Annotated { kind: 'text'; text: string; style: RunStyle; }
+export interface ImageNode extends Annotated {
   kind: 'image'; path?: string; alt: string; width?: number; height?: number;
   formula: boolean; latex?: string; css: Css;
   /** Resolved display URL in the JSON output; absent when the image cannot be displayed. */
@@ -20,15 +27,18 @@ export interface ImageNode {
   /** HTML element attributes projected into JSON for renderer parity. */
   attributes?: HtmlAttributes;
 }
-export interface MathNode {
+export interface MathNode extends Annotated {
   kind: 'math'; mathml: string; latex?: string; display: boolean;
   /** Self-contained PNG or SVG data URL when formulaOutput is image and rendering succeeds. */
   src?: string;
   /** HTML element attributes projected into JSON for renderer parity. */
   attributes?: HtmlAttributes;
 }
-export interface LinkNode { kind: 'link'; url: string; children: Inline[]; }
-export type Inline = TextNode | ImageNode | MathNode | LinkNode | { kind: 'break' } | { kind: 'anchor'; id: string } | { kind: 'unsupported'; label: string };
+export interface LinkNode extends Annotated { kind: 'link'; url: string; children: Inline[]; }
+export type Inline = TextNode | ImageNode | MathNode | LinkNode
+  | ({ kind: 'break' } & Annotated)
+  | ({ kind: 'anchor'; id: string } & Annotated)
+  | ({ kind: 'unsupported'; label: string } & Annotated);
 export interface Paragraph {
   kind: 'paragraph'; style: ParaStyle; children: Inline[];
   list?: { id: string; level: number; format: string; start: number; text: string };

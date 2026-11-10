@@ -125,6 +125,22 @@ MathType 公式若附带 WMF/EMF 预览，浏览器演示页会自动转成 PNG�
 
 LaTeX 是从 OLE/MTEF 重建的，不一定等于作者最初输入的源码。不支持的模板、损坏数据或与预览图明显不符的公式不会写入 `data-latex`，但图片仍会显示。
 
+## 批注
+
+正文中的 Word 批注范围会转换为带属性标记的行内元素：
+
+```html
+<span
+  class="annotation-item"
+  data-type="annotation"
+  data-annotation="中国式现代化的批注"
+>
+  中国式现代化
+</span>
+```
+
+批注文字与文本样式会合并到同一个元素中，不会额外生成只承载样式的内层 `span`。批注范围跨多个文本样式或段落时，会按实际文本节点分别输出 `annotation-item` 元素。`data-annotation` 来自 `word/comments.xml` 中的批注正文。若公式、图片等内容自身已有 `data-type`，则保留原元素并在外层嵌套批注 `span`，避免属性冲突。
+
 ## 原生图表、组合图形与 SmartArt
 
 - **原生图表**：支持从 OOXML 图表缓存读取标准折线图和纵向簇状柱形图并生成图片，保留分类、数值坐标轴和缓存数据；HTML 和 JSON 均可使用。`generatedImageOutput` 默认为 `'png'`，可设为 `'svg'`。不重新计算嵌入工作簿；堆积图、百分比堆积图、横向条形图及复杂组合图尚未完整支持。

@@ -16,6 +16,57 @@ describe('DOCX conversion', () => {
     expect(result.meta).toEqual({ title: '示例文档' });
     expect(result.elements[0]).toMatchObject({ tag: 'p', text: '内容' });
   });
+  it('marks Word comment ranges as annotations in HTML and JSON', async () => {
+    const comments = `<w:comments ${ns}><w:comment w:id="0">${p(text('中国式现代化的批注'))}</w:comment></w:comments>`;
+    const input = docx(
+      p(text('前') + '<w:commentRangeStart w:id="0"/>' + text('中国式', '<w:b/>') + text('现代化') + '<w:commentRangeEnd w:id="0"/>' + '<w:r><w:commentReference w:id="0"/></w:r>' + text('后')),
+      {
+        rels: `<Relationship Id="comments" Type="${R}/comments" Target="comments.xml"/>`,
+        extra: { 'word/comments.xml': comments },
+      },
+    );
+    const [html, json] = await Promise.all([convertToHtml(input), convertToJson(input)]);
+    expect(html.warnings).toEqual([]);
+
+    const annotationHtml = elements(html.html, 'span').filter(element => element.getAttribute('data-type') === 'annotation');
+    expect(annotationHtml.map(element => element.textContent).join('')).toBe('中国式现代化');
+    for (const element of annotationHtml) {
+      expect(element.getAttribute('class')).toBe('annotation-item');
+      expect(element.getAttribute('data-annotation')).toBe('中国式现代化的批注');
+      expect(element.getElementsByTagName('span')).toHaveLength(0);
+    }
+    expect(annotationHtml.some(element => element.getAttribute('style')?.includes('font-weight:bold'))).toBe(true);
+
+    const annotationNodes = jsonNodes(json).filter(node => node.attribute['data-type'] === 'annotation');
+    expect(annotationNodes.map(node => node.text).join('')).toBe('中国式现代化');
+    for (const node of annotationNodes) {
+      expect(node.class).toEqual(['annotation-item']);
+      expect(node.attribute['data-annotation']).toBe('中国式现代化的批注');
+      expect(node.children).toEqual([]);
+    }
+  });
+  it('nests annotation wrappers when the selected content already has a data-type', async () => {
+    const comments = `<w:comments ${ns}><w:comment w:id="3">${p(text('公式批注'))}</w:comment></w:comments>`;
+    const input = docx(
+      p('<w:commentRangeStart w:id="3"/>' + `<m:oMath>${mt('x')}</m:oMath>` + '<w:commentRangeEnd w:id="3"/>' + '<w:r><w:commentReference w:id="3"/></w:r>'),
+      {
+        rels: `<Relationship Id="comments" Type="${R}/comments" Target="comments.xml"/>`,
+        extra: { 'word/comments.xml': comments },
+      },
+    );
+    const [html, json] = await Promise.all([
+      convertToHtml(input, { formulaOutput: 'mathml' }),
+      convertToJson(input, { formulaOutput: 'mathml' }),
+    ]);
+
+    const annotationHtml = elements(html.html, 'span').find(element => element.getAttribute('data-type') === 'annotation')!;
+    const formulaHtml = annotationHtml.getElementsByTagName('span')[0];
+    expect(formulaHtml.getAttribute('data-type')).toBe('formula');
+    expect(annotationHtml.getAttribute('class')).toBe('annotation-item');
+
+    const annotationNode = jsonNodes(json).find(node => node.attribute['data-type'] === 'annotation')!;
+    expect(annotationNode.children.some(child => child.attribute['data-type'] === 'formula')).toBe(true);
+  });
   it('exports page setup and theme metadata', async () => {
     const section = `<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1800" w:bottom="900" w:left="1080" w:header="720" w:footer="360" w:gutter="0"/></w:sectPr>`;
     const theme = `<a:theme xmlns:a="${A}" name="Office"><a:themeElements><a:clrScheme name="Office"><a:dk1><a:srgbClr val="000000"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:accent1><a:srgbClr val="4472C4"/></a:accent1></a:clrScheme><a:fontScheme name="Office"><a:majorFont><a:latin typeface="Calibri Light"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont><a:minorFont><a:latin typeface="Calibri"/><a:ea typeface="宋体"/><a:cs typeface="Arial"/></a:minorFont></a:fontScheme></a:themeElements></a:theme>`;

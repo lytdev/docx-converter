@@ -130,6 +130,20 @@ interface JsonConversionResult {
 
 `formulaOutput: 'image'`（默认）时公式在 JSON 中对应 `img` 节点，`src` 是 PNG/SVG 地址，`data-type="formula"` 和 `data-latex` 位于 `attribute`；设为 `formulaOutput: 'mathml'` 时对应递归的 MathML 元素树。两种形式的完整样例见 [全量 JSON 样例](full-test-json-samples.md)。
 
+批注范围对应 `span` 节点，class 包含 `annotation-item`，`attribute` 中包含 `data-type: "annotation"` 和 `data-annotation`：
+
+```json
+{
+  "tag": "span",
+  "text": "中国式现代化",
+  "class": ["annotation-item"],
+  "attribute": {
+    "data-type": "annotation",
+    "data-annotation": "中国式现代化的批注"
+  }
+}
+```
+
 ### JSON 还原 HTML
 
 JSON 文档树可以直接还原为 HTML，不需要原 DOCX 或资源包：

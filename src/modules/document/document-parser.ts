@@ -13,6 +13,7 @@ import { InlineParser } from './inline-parser.js';
 import { DrawingParser } from './drawing-parser.js';
 import { TableParser } from './table-parser.js';
 import { readDocumentMetadata } from './document-metadata.js';
+import { readCommentAnnotations } from './comment-reader.js';
 
 /** Coordinates document flow; feature parsers own their own algorithms. */
 export class DocumentParser {
@@ -22,7 +23,7 @@ export class DocumentParser {
 
   constructor(source: PartReader, operations: ConversionContext) {
     this.context = { source, operations, styles: new Styles(source, operations), numbering: new Numbering(source),
-      stats: { paragraphs: 0, tables: 0, images: 0, formulas: 0 }, resources: new Set() };
+      annotations: readCommentAnnotations(source), stats: { paragraphs: 0, tables: 0, images: 0, formulas: 0 }, resources: new Set() };
     const drawings = new DrawingParser(this.context, parent => contentElements(parent, operations)
       .filter(el => is(el, 'p')).map(el => this.paragraph(el)));
     this.inlines = new InlineParser(this.context, drawings);
@@ -41,7 +42,7 @@ export class DocumentParser {
       this.context.operations.progress({ stage: 'parsing', completed: i + 1, total: items.length });
     }
     for (const r of this.context.source.relationships(this.context.source.main).values()) {
-      if (['header', 'footer', 'footnotes', 'endnotes', 'comments'].some(t => r.type.endsWith(`/${t}`)))
+      if (['header', 'footer', 'footnotes', 'endnotes'].some(t => r.type.endsWith(`/${t}`)))
         this.context.operations.warn('UNSUPPORTED_PART', `当前正文转换不包含 ${r.type.split('/').pop()} 部件`);
     }
     return {

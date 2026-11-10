@@ -11,6 +11,7 @@ export interface ParseContext {
   operations: ConversionContext;
   styles: Styles;
   numbering: Numbering;
+  annotations: ReadonlyMap<string, string>;
   stats: ConversionResult['stats'];
   resources: Set<string>;
 }
