@@ -8,7 +8,7 @@ export default defineConfig({
     // specifier. Map it to STIX Two so the unused NewCM font data is not shipped.
     { find: /^#default-font\//, replacement: '@mathjax/mathjax-stix2-font/js/' },
   ] },
-  build: { outDir: 'dist', emptyOutDir: false,
+  build: { outDir: 'dist', emptyOutDir: false, target: 'es2020',
     lib: { entry: 'src/index.ts', name: 'DocxConverter', formats: ['es', 'umd'], fileName: format => format === 'es' ? 'docx-converter.browser.js' : 'docx-converter.umd.cjs' },
   },
 });

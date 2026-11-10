@@ -27,7 +27,8 @@ function coreProperties(source: PartReader): DocumentMetadata {
 }
 
 function pageMetadata(body: X): DocumentPageMetadata | undefined {
-  const section = children(body).filter(element => is(element, 'sectPr')).at(-1);
+  const sections = children(body).filter(element => is(element, 'sectPr'));
+  const section = sections[sections.length - 1];
   if (!section) return;
   const page: DocumentPageMetadata = {};
   const size = child(section, 'pgSz');

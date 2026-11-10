@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.json",
-  "compilerOptions": { "lib": ["ES2022", "WebWorker"], "types": [] },
+  "compilerOptions": { "lib": ["ES2020", "WebWorker"], "types": [] },
   "include": ["apps/playground/worker/entry.ts"]
 }

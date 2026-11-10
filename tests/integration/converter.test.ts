@@ -351,7 +351,7 @@ describe('DOCX conversion', () => {
   it('reports staged progress and marks complete only on success', async () => {
     const stages: string[] = [];
     await convertToHtml(docx(p(text('a')) + '<w:tbl><w:tr><w:tc/></w:tr></w:tbl>'), { onProgress: event => stages.push(`${event.stage}:${event.total ?? ''}`) });
-    expect(stages).toContain('parsing:2'); expect(stages.at(-1)).toBe('complete:');
+    expect(stages).toContain('parsing:2'); expect(stages[stages.length - 1]).toBe('complete:');
     const errorStages: string[] = [];
     await expect(convertToHtml(new Uint8Array([0]), { onProgress: e => errorStages.push(e.stage) })).rejects.toThrow(); expect(errorStages).not.toContain('complete');
   });
